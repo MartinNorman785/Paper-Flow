@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}PaperFlow Upload{% endblock %}
+
+{% block content %}
+<div class="upload-page">
+    <header>
+        <h1>Upload Past Paper</h1>
+        <p>Select a PDF to upload or drag & drop the file below.</p>
+    </header>
+
+    {% if message %}
+        <div class="message">{{ message }}</div>
+    {% endif %}
+
+    <section>
+        <form method="POST" enctype="multipart/form-data" id="upload-form">
+            <!-- Upload box -->
+            <div class="upload-box" id="upload-box">
+                <p id="upload-text">Drag & Drop PDF here or click to select</p>
+                <input type="file" name="file" id="file-input" accept=".pdf" hidden>
+            </div>
+
+            {% if uploaded_paper %}
+                <div style="margin-top: 20px;">
+                    <h3>Preview</h3>
+                    <p><strong>{{ uploaded_paper.filename }}</strong></p>
+                    <iframe 
+                        src="{{ url_for('uploaded_file', filename=uploaded_paper.filename) }}"
+                        width="100%" 
+                        height="600px"
+                        style="border: 1px solid #ccc; border-radius: 5px;">
+                    </iframe>
+
+                    <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+                        
+                        <a href="{{ url_for('uploaded_file', filename=uploaded_paper.filename) }}" 
+                        download
+                        class="btn-primary">
+                            Download PDF
+                        </a>
+
+                        <a href="{{ url_for('view_paper', paper_id=uploaded_paper.id) }}" 
+                        class="btn-primary">
+                            Open in Manager
+                        </a>
+
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Submit button -->
+            <div class="file-submit">
+                <button type="submit">Upload</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<script>
+const uploadBox = document.getElementById('upload-box');
+const fileInput = document.getElementById('file-input');
+const uploadText = document.getElementById('upload-text');
+
+// Click to open file selector
+uploadBox.addEventListener('click', () => fileInput.click());
+
+// Drag & Drop events
+uploadBox.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadBox.classList.add('dragover');
+});
+
+uploadBox.addEventListener('dragleave', () => {
+    uploadBox.classList.remove('dragover');
+});
+
+uploadBox.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadBox.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        uploadText.textContent = `Selected file: ${fileInput.files[0].name}`;
+    }
+});
+
+// Show selected file name for manual selection
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+        uploadText.textContent = `Selected file: ${fileInput.files[0].name}`;
+    }
+});
+</script>
+
+{% endblock %}

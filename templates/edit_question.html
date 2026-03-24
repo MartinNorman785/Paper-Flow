@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}PaperFlow View{% endblock %}
+
+{% block content %}
+<header>
+<body>
+    <div class="container">
+        <header>
+            <h1>Edit Question</h1>
+            <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}">
+                <button>Back to Paper</button>
+            </a>
+        </header>
+
+        <section>
+            <form method="post">
+                <label for="text"><strong>Question Text:</strong></label>
+                <textarea id="text" name="text">{{ question.text }}</textarea>
+                <br>
+                <label for="tags"><strong>Tags (Comma Separated):</strong></label>
+                <input type="text" id="tags" name="tags" value="{{ question.tags }}" placeholder="e.g. algebra, integration, probability">
+
+                <button type="submit">Save Changes</button>
+            </form>
+        </section>
+    </div>
+</body>
+</html>
+{% endblock %}

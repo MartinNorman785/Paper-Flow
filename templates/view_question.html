@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Question {{ question.id }}{% endblock %}
+
+{% block content %}
+    <header style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>Question {{ question.id }}</h1>
+        <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}">
+            <button>Back to Past Paper</button>
+        </a>
+    </header>
+{% if question.filename %}
+    <h3>PDF Preview</h3>
+
+    <div style="border: 1px solid #ccc; border-radius: 5px; margin-bottom: 5px;">
+        <embed src="{{ url_for('question_pdf', filename=question.filename) }}" type="application/pdf" width="100%" height="400px">    
+    </div>
+    <a href="{{ url_for('static', filename=question.filename) }}" download>
+        <button style="background-color: #4CAF50; color: white; margin-bottom: 35px;">Download PDF</button>
+    </a>
+{% else %}
+    <p>No PDF available for this question.</p>
+{% endif %}
+
+<div style="padding: 10px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 15px;">
+    <p>{{ question.text }}</p>
+
+    {% if question.tags %}
+        <p>
+            {% for tag in question.tags.split(',') %}
+                <span class="tag">{{ tag.strip() }}</span>
+            {% endfor %}
+        </p>
+    {% endif %}
+</div>
+
+<!-- Actions -->
+<div style="display: flex; gap: 10px; margin-top: 15px;">
+    <a href="{{ url_for('edit_question', question_id=question.id) }}">
+        <button>Edit Question</button>
+    </a>
+
+    <form action="{{ url_for('delete_question', question_id=question.id) }}" method="POST" style="display:inline;">
+        <button style="background-color: #cd4236;">Delete</button>
+    </form>
+</div>
+
+{% endblock %}

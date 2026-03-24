@@ -1,0 +1,235 @@
+/* --- Reset & Body --- */
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    color: #1c375b;
+}
+
+/* --- Sidebar container --- */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 220px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #6f8197;
+}
+
+/* Brand at the top */
+.sidebar .brand {
+    padding: 20px;
+    font-size: 20px;
+    font-weight: bold;
+    background-color: #1c375b;
+    color: white;
+}
+
+/* Navigation links section */
+.sidebar .nav-links {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    padding-top: 20px;
+}
+
+.sidebar .nav-links a {
+    padding: 15px 20px;
+    text-decoration: none;
+    color: #f5f5f5;
+    font-weight: 500;
+}
+
+.sidebar .nav-links a:hover {
+    background-color: #1c375b;
+    color: white;
+}
+
+/* --- Main content next to sidebar --- */
+.main-content {
+    margin-left: 220px;
+    padding: 30px;
+}
+
+/* --- Header --- */
+header {
+    text-align: left;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #6f8197;
+}
+
+header h1 {
+    font-size: 2em;
+    margin: 0;
+    color: #1c375b;
+    padding-bottom: 10px;
+}
+
+header p {
+    font-size: 1.1em;
+    color: #6f8197;
+}
+
+/* --- Buttons --- */
+button, .btn-primary {
+    background-color: #1c375b;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+button:hover, .btn-primary:hover {
+    background-color: #6f8197;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* --- Paper Cards --- */
+.paper-card-wrapper {
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.paper-card-link {
+    display: block;
+    text-decoration: none;
+}
+
+.paper-card {
+    background-color: #f5f5f5;
+    padding: 15px 20px;
+    border-radius: 8px;
+    border: 1px solid #6f8197;
+    box-shadow: 0 2px 4px rgba(28,55,91,0.1);
+    position: relative;
+    transition: transform 0.1s, box-shadow 0.2s;
+}
+
+.paper-card-link:hover .paper-card {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(28,55,91,0.2);
+}
+
+.paper-card h3 {
+    margin-top: 0;
+    color: #1c375b;
+}
+
+.paper-card p {
+    margin: 5px 0;
+}
+
+/* --- Tags --- */
+.tag {
+    display: inline-block;
+    background-color: #6f8197;
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 0.85em;
+    margin-right: 5px;
+}
+
+/* --- Upload Box --- */
+.upload-box {
+    border: 2px dashed #1c375b;
+    border-radius: 8px;
+    padding: 50px;
+    text-align: center;
+    color: #1c375b;
+    margin: 0 auto 20px auto;
+    max-width: 400px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: #f5f5f5;
+}
+
+.upload-box.dragover {
+    background-color: #e6ecf5;
+    border-color: #6f8197;
+    box-shadow: 0 0 10px rgba(28,55,91,0.2);
+}
+
+/* --- Form Inputs --- */
+input[type="text"], input[type="password"], textarea {
+    width: 90%;
+    padding: 12px;
+    margin: 8px 0 16px 0;
+    border: 1px solid #6f8197;
+    border-radius: 6px;
+    font-size: 1em;
+    resize: vertical;
+    background-color: #f5f5f5;
+    color: #1c375b;
+    padding-right: 0px;
+}
+
+/* --- Login & Register Containers --- */
+.login-container, .register-container {
+    max-width: 400px;
+    margin: 80px auto;
+    padding: 30px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* --- Footer --- */
+footer {
+    background-color: #f5f5f5;
+    padding: 15px 20px;
+    text-align: center;
+    font-size: 0.9em;
+    color: #1c375b;
+    border-top: 1px solid #6f8197;
+    margin-top: 30px;
+}
+
+/* --- Delete Button on Paper Card --- */
+.delete-form {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+}
+
+.card-btn.delete-btn {
+    background-color: #1c375b;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.card-btn.delete-btn:hover {
+    background-color: #6f8197;
+    opacity: 0.9;
+}
+
+/* --- Links --- */
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+a:hover {
+    color: #6f8197;
+    text-decoration: underline;
+}
+
+/* --- Flash Messages --- */
+.alert {
+    margin-bottom: 20px;
+}
