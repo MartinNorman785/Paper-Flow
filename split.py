@@ -8,7 +8,7 @@ from cache import CACHE_DIR
 def convert_to_pdf_coords(y_norm, page_height):
     return page_height * (1 - y_norm)
 
-def crop_question(input_path, output_path, page_num, y_top, y_bottom):
+def crop_question(input_path, page_num, y_top, y_bottom):
     """
     Crops a single question from a PDF page using normalized coordinates (0-1).
     Converts Decimal inputs to float to avoid TypeErrors.
@@ -39,7 +39,8 @@ def crop_question(input_path, output_path, page_num, y_top, y_bottom):
     page.cropbox = RectangleObject((left, crop_bottom, right, crop_top))
 
     writer.add_page(page)
-    with open(output_path, "wb") as f_out:
-        writer.write(f_out)
-
-    print(f"Cropped page {page_num} -> {output_path}")
+    
+    output = BytesIO()
+    writer.write(output)
+    output.seek(0)
+    return output.read()

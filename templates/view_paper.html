@@ -6,15 +6,18 @@
 <div class="container">
     <header style="display: flex; justify-content: space-between; align-items: center;">
         <h1>Manage Paper</h1>
+        {% from "macros.html" import flash_messages %}
+
+        {{ flash_messages() }}
         <a href="{{ url_for('index') }}"><button>Back to Past Papers</button></a>
     </header>
 
     <section class="paper-actions" style="margin: 20px 0;">
-        {% if edit_name %}
+        {% if edit_name and paper.owner_id == current_user.id %}
             <form method="POST" action="{{ url_for('update_paper_name', paper_id=paper.id) }}"
                 style="display: flex; justify-content: space-between; align-items: center;">
 
-                <input type="text" name="filename" value="{{ paper.filename }}"
+                <input type="text" name="filename" value="{{ format_filename(paper.filename) }}"
                     required style="font-size: 1em; padding: 5px;">
 
                 <div style="display: flex; gap: 10px; padding-left: 20px;">
@@ -30,9 +33,10 @@
         {% else %}
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h2 style="margin: 0;">
-                    {{ paper.filename }}
+                    {{ format_filename(paper.filename) }}
                 </h2>
 
+                {% if paper.owner_id == current_user.id %}
                 <div style="display: flex; gap: 10px;">
                     <a href="{{ url_for('view_paper', paper_id=paper.id, edit_name=1) }}">
                         <button>Change Name</button>
@@ -47,6 +51,14 @@
                         <button type="submit" class="btn btn-primary">Process PDF into Questions</button>
                     </form>
                 </div>
+                {% else %}
+                <div style="display: flex; gap: 10px;">
+                    <form method="POST" action="{{ url_for('remove_paper', paper_id=paper.id) }}"
+                        onsubmit="return confirm('Are you sure you want to remove this paper from your files?');">
+                        <button style="background-color: #cd4236;">Remove Paper from Files</button>
+                    </form>
+                </div>
+                {% endif %}
             </div>
         {% endif %}
     </section>
@@ -72,6 +84,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h2 style="margin: 0;">Questions</h2>
 
+            {% if paper.owner_id == current_user.id %}
             <div style="display: flex; gap: 10px;">
                 <a href="{{ url_for('add_question', paper_id=paper.id) }}">
                     <button style="background-color: #4CAF50; color: white;">
@@ -85,6 +98,7 @@
                     </button>
                 </form>
             </div>
+            {% endif %}
         </div>
         {% if paper.questions %}
             <div class="papers-list" style="display: flex; flex-direction: column; gap: 10px;">
@@ -104,6 +118,7 @@
                                 {% endif %}
                             </div>
 
+                            {% if paper.owner_id == current_user.id %}
                             <div style="margin-left: 10px;">
                                 <a href="{{ url_for('edit_question', question_id=q.id) }}">
                                     <button>Edit Question</button>
@@ -112,6 +127,7 @@
                                     <button style="background-color: #cd4236;">Delete</button>
                                 </form>
                             </div>
+                            {% endif %}
                         </div>
                     </a>
                 {% endfor %}

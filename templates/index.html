@@ -5,6 +5,9 @@
 {% block content %}
 <header>
     <h1>Past Papers</h1>
+    {% from "macros.html" import flash_messages %}
+
+    {{ flash_messages() }}
     <p>Manage your uploaded past papers and questions easily.</p>
     <a href="{{ url_for('upload') }}"><button>Upload New Paper</button></a>
 </header>
@@ -17,15 +20,20 @@
                     <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="paper-card-link">
                         <div class="paper-card">
                             <div class="paper-info">
-                                <h3>{{ paper.filename }}</h3>
+                                <h3>{{ format_filename(paper.filename) }}</h3>
                                 <p><strong>Questions:</strong> {{ paper.questions|length }}</p>
                             </div>
-
-                            <!-- Delete button positioned on top of card -->
-                            <form class="delete-form" action="{{ url_for('delete_paper', paper_id=paper.id) }}" method="POST"
-                                onsubmit="return confirm('Are you sure you want to delete this past paper?');">
-                                <button type="submit" class="card-btn delete-btn">Delete</button>
-                            </form>
+                            {% if paper.owner_id == current_user.id %}
+                                <form class="delete-form" action="{{ url_for('delete_paper', paper_id=paper.id) }}" method="POST"
+                                    onsubmit="return confirm('Are you sure you want to delete this past paper?');">
+                                    <button type="submit" class="card-btn delete-btn">Delete</button>
+                                </form>
+                            {% else %}
+                                <form class="delete-form" action="{{ url_for('remove_paper', paper_id=paper.id) }}" method="POST"
+                                    onsubmit="return confirm('Are you sure you want to remove this past paper from your papers?');">
+                                    <button type="submit" class="card-btn delete-btn">Remove</button>
+                                </form>
+                            {% endif %}
                         </div>
                     </a>
                 </div>
