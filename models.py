@@ -1,4 +1,5 @@
 from extensions import db
+from flask_login import UserMixin
 
 class PastPaper(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -17,7 +18,7 @@ class Question(db.Model):
     text = db.Column(db.Text, nullable=True)
     tags = db.Column(db.String(200), nullable=True)
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)

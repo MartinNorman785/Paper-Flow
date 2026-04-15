@@ -20,13 +20,10 @@ PROCESSOR_ID = "2792401a0b659ea1"
 FILE_PATH = "/workspaces/PastPaper/2024-hsc-maths-adv-short.pdf"
 
 
-def process_pdf(file_path):
+def process_pdf(pdf_content):
     client = documentai.DocumentProcessorServiceClient()
 
     name = client.processor_path(PROJECT_ID, LOCATION, PROCESSOR_ID)
-
-    with open(file_path, "rb") as f:
-        pdf_content = f.read()
 
     request = documentai.ProcessRequest(
         name=name,

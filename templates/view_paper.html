@@ -17,7 +17,7 @@
             <form method="POST" action="{{ url_for('update_paper_name', paper_id=paper.id) }}"
                 style="display: flex; justify-content: space-between; align-items: center;">
 
-                <input type="text" name="filename" value="{{ paper.filename }}"
+                <input type="text" name="filename" value="{{ format_filename(paper.filename) }}"
                     required style="font-size: 1em; padding: 5px;">
 
                 <div style="display: flex; gap: 10px; padding-left: 20px;">
@@ -33,7 +33,7 @@
         {% else %}
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h2 style="margin: 0;">
-                    {{ paper.filename }}
+                    {{ format_filename(paper.filename) }}
                 </h2>
 
                 <div style="display: flex; gap: 10px;">

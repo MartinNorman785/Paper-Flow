@@ -3,11 +3,12 @@
 {% block title %}PaperFlow Upload{% endblock %}
 
 {% block content %}
+
+{% from "macros.html" import flash_messages %}
+
 <div class="upload-page">
     <header>
         <h1>Upload Past Paper</h1>
-        {% from "macros.html" import flash_messages %}
-
         {{ flash_messages() }}
         <p>Select a PDF to upload or drag & drop the file below.</p>
     </header>
@@ -51,9 +52,13 @@
                     </div>
                 </div>
             {% endif %}
-
-            <!-- Submit button -->
-            <div class="file-submit">
+            <div id="preview-container" style="margin-top: 20px; display: none;">
+                <h3>Preview</h3>
+                <iframe id="pdf-preview" width="100%" height="600px"
+                    style="border: 1px solid #ccc; border-radius: 5px;">
+                </iframe>
+            </div>
+            <div class="file-submit" style="display: flex; justify-content: center; margin-top: 15px;">
                 <button type="submit">Upload</button>
             </div>
         </form>
@@ -85,12 +90,34 @@ uploadBox.addEventListener('drop', (e) => {
         fileInput.files = e.dataTransfer.files;
         uploadText.textContent = `Selected file: ${fileInput.files[0].name}`;
     }
+    const file = e.dataTransfer.files[0];
+    
+    fileInput.files = e.dataTransfer.files;
+    uploadText.textContent = `Selected file: ${file.name}`;
+
+    const previewContainer = document.getElementById('preview-container');
+    const previewFrame = document.getElementById('pdf-preview');
+
+    const fileURL = URL.createObjectURL(file);
+    previewFrame.src = fileURL;
+
+    previewContainer.style.display = 'block';
 });
 
-// Show selected file name for manual selection
 fileInput.addEventListener('change', () => {
     if (fileInput.files.length) {
-        uploadText.textContent = `Selected file: ${fileInput.files[0].name}`;
+        const file = fileInput.files[0];
+
+        uploadText.textContent = `Selected file: ${file.name}`;
+
+        // Show preview
+        const previewContainer = document.getElementById('preview-container');
+        const previewFrame = document.getElementById('pdf-preview');
+
+        const fileURL = URL.createObjectURL(file);
+        previewFrame.src = fileURL;
+
+        previewContainer.style.display = 'block';
     }
 });
 </script>

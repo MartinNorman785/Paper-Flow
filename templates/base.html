@@ -9,13 +9,15 @@
 </head>
 <body>
     <nav class="sidebar">
-        {% if user %}
-            <div class="brand">PaperFlow - {{ user.username }}</div>
-        {% else %}
-            <div class="brand">PaperFlow</div>
+    <div class="brand">
+        PaperFlow 
+        {% if current_user.is_authenticated %}
+            <span class="user-tag">{{ current_user.username }}</span>
         {% endif %}
+    </div>
+
         <div class="nav-links">
-            {% if session.get('user_id') %}
+            {% if current_user.is_authenticated %}
                 <a href="{{ url_for('index') }}">Home</a>
                 <a href="{{ url_for('upload') }}">Upload</a>
                 <a href="{{ url_for('logout') }}">Logout</a>

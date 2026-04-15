@@ -1,11 +1,14 @@
 # app.py
 from flask import Flask, render_template, current_app, request, redirect, url_for, send_file, send_from_directory, flash, send_from_directory, session, abort
 from flask_sqlalchemy import SQLAlchemy
-import os
-from io import BytesIO
-from werkzeug.utils import secure_filename
+from flask_login import login_user, logout_user, login_required, current_user, LoginManager
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from functools import wraps
+from io import BytesIO
+import uuid
+import os
+import re
 
 from extensions import db
 from models import PastPaper, Question, User, PaperFile, QuestionFile
@@ -18,21 +21,19 @@ db.init_app(app)
 
 app.secret_key = os.urandom(24)
 
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    user = User.query.filter_by(id=int(user_id)).first()
+    print(f"Loading user {user_id}: {user}")
+    return user
 
 @app.context_processor
 def inject_user():
-    user = None
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-    return dict(user=user)
-
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
+    return dict(user=current_user)
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -56,19 +57,20 @@ def register():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        remember = request.form.get('remember') == 'on'
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
-            session['user_id'] = user.id
+            login_user(user, remember=remember)
             flash('You have been logged in successfully.', 'success')
-            return redirect(url_for('index'))
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('index'))
         flash('Invalid username or password.', 'error')
-        return render_template('login.html')
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    session.pop('user_id', None)
-    flash('You have been logged in successfully.', 'success')
+    logout_user()
+    flash('You have been logged out.', 'success')
     return redirect(url_for('login'))
 
 @app.route('/')
@@ -91,16 +93,18 @@ def upload():
             if file.filename == '':
                 message = "No file selected."
             elif file.filename.endswith('.pdf'):
-                safe_name = secure_filename(file.filename)
+                original_name = secure_filename(file.filename)
 
-                paper = PastPaper(filename=safe_name)
-                paperfile = PaperFile(filename=safe_name, data=file.read())
+                unique_name = f"{uuid.uuid4().hex}_{original_name}"
+
+                paper = PastPaper(filename=unique_name)
+                paperfile = PaperFile(filename=unique_name, data=file.read())
 
                 db.session.add(paper)
                 db.session.add(paperfile)
-
                 db.session.commit()
-                message = f"Successfully uploaded {safe_name}!"
+
+                return redirect(url_for('view_paper', paper_id=paper.id))
             else:
                 message = "Invalid file type. Only PDFs are allowed."
 
@@ -153,8 +157,10 @@ def update_paper_name(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     file = PaperFile.query.get_or_404(paper.filename)
 
+    new_name = unformat_filename(request.form['filename'])
+    new_name = secure_filename(new_name.strip())
+    new_name = paper.filename.split('_', 1)[0] + "_" + new_name
 
-    new_name = secure_filename(request.form['filename'].strip())
 
     if new_name:
         if not new_name.lower().endswith('.pdf'):
@@ -170,6 +176,17 @@ def update_paper_name(paper_id):
 
     return redirect(url_for('view_paper', paper_id=paper.id))
 
+def unformat_filename(display_name):
+    name = display_name.strip().lower()
+
+    # Replace spaces with dashes
+    name = re.sub(r'\s+', '-', name)
+
+    # Remove invalid characters
+    name = re.sub(r'[^a-z0-9\-]', '', name)
+
+    return name
+
 @app.route('/uploads/<path:filename>')
 @login_required
 def uploaded_file(filename):
@@ -184,18 +201,36 @@ def process_paper(paper_id):
 
     paper = PastPaper.query.get_or_404(paper_id)
     file_path = paper.filename
+    paperfile = PaperFile.query.get_or_404(file_path)
 
     # Load or process blocks
     blocks = load_blocks(paper.filename)
     
     if blocks is None:
-        document = process_pdf(paper.filename)
-        blocks = get_blocks(paper.filename)
+        document = process_pdf(paperfile.data)
+        blocks = get_blocks(document)
         save_blocks(blocks, paper.filename)
 
     split_pdf_by_questions(file_path, blocks, paper.id)
 
     return redirect(url_for('view_paper', paper_id=paper.id))
+
+def format_filename(filename):
+    name = filename.split('_', 1)[-1]
+    name = os.path.splitext(name)[0]
+    name = re.sub(r'[-_]+', ' ', name)
+    words = name.split()
+    formatted = []
+    for w in words:
+        if w.upper() in ["HSC", "IB", "PDF"]:
+            formatted.append(w.upper())
+        else:
+            formatted.append(w.capitalize())
+    return " ".join(formatted)
+
+@app.context_processor
+def utility_processor():
+    return dict(format_filename=format_filename)
 
 @app.route('/question/<int:question_id>')
 @login_required

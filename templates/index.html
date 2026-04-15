@@ -20,7 +20,7 @@
                     <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="paper-card-link">
                         <div class="paper-card">
                             <div class="paper-info">
-                                <h3>{{ paper.filename }}</h3>
+                                <h3>{{ format_filename(paper.filename) }}</h3>
                                 <p><strong>Questions:</strong> {{ paper.questions|length }}</p>
                             </div>
 
