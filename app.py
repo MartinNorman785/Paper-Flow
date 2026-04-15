@@ -1,17 +1,17 @@
-# app.py
 from flask import Flask, render_template, current_app, request, redirect, url_for, send_file, send_from_directory, flash, send_from_directory, session, abort
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import login_user, logout_user, login_required, current_user, LoginManager
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import func
 from functools import wraps
 from io import BytesIO
 import uuid
 import os
 import re
 
+from models import PastPaper, Question, User, PaperFile, QuestionFile, UserPaper
 from extensions import db
-from models import PastPaper, Question, User, PaperFile, QuestionFile
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///papers.db'
@@ -28,7 +28,6 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     user = User.query.filter_by(id=int(user_id)).first()
-    print(f"Loading user {user_id}: {user}")
     return user
 
 @app.context_processor
@@ -39,7 +38,15 @@ def inject_user():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        remember = True
         username = request.form['username']
+
+        existing_user = User.query.filter_by(username=username).first()
+
+        if existing_user:
+            flash('Username already taken. Please choose another.', 'error')
+            return redirect(url_for('register'))
+
         password = generate_password_hash(request.form['password'])
         new_user = User(username=username, password_hash=password)
         db.session.add(new_user)
@@ -47,7 +54,7 @@ def register():
 
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
-            session['user_id'] = user.id
+            login_user(user, remember=remember)
             flash('You have been registered successfully.', 'success')
             return redirect(url_for('index'))
         flash('Invalid username or password.', 'error')
@@ -76,7 +83,9 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    papers = PastPaper.query.all()
+    links = UserPaper.query.filter_by(user_id=current_user.id).all()
+
+    papers = [PastPaper.query.get(link.paper_id) for link in links]
     return render_template('index.html', papers=papers)
 
 
@@ -97,11 +106,18 @@ def upload():
 
                 unique_name = f"{uuid.uuid4().hex}_{original_name}"
 
-                paper = PastPaper(filename=unique_name)
+                paper = PastPaper(filename=unique_name, owner_id=current_user.id)
                 paperfile = PaperFile(filename=unique_name, data=file.read())
 
                 db.session.add(paper)
                 db.session.add(paperfile)
+                db.session.commit()
+
+                link = UserPaper(
+                    user_id=current_user.id,
+                    paper_id=paper.id
+                )
+                db.session.add(link)
                 db.session.commit()
 
                 return redirect(url_for('view_paper', paper_id=paper.id))
@@ -110,11 +126,103 @@ def upload():
 
     return render_template('upload.html', message=message)
 
+@app.route('/explore')
+@login_required
+def explore():
+    q = request.args.get('q', '').strip()
+    sort = request.args.get('sort', 'new')
+    query = PastPaper.query
+
+
+    if q:
+        query = query.filter(PastPaper.filename.contains(q))
+
+    if sort == 'old':
+        query = query.order_by(PastPaper.uploaded_at.asc())
+    elif sort == 'name':
+        query = query.order_by(PastPaper.filename.asc())
+    else:  # default: newest
+        query = query.order_by(PastPaper.uploaded_at.desc())
+
+    papers = query.all()
+    user_papers = {
+        up.paper_id for up in UserPaper.query.filter_by(user_id=current_user.id).all()
+    }
+
+    return render_template('explore.html', papers=papers, q=q, sort=sort, user_papers=user_papers)
+
+
+@app.route('/api/search')
+@login_required
+def api_search():
+    q = request.args.get('q', '').strip()
+
+    query = PastPaper.query
+
+    if q:
+        query = query.filter(
+            func.lower(PastPaper.filename).contains(q) |
+            func.replace(func.replace(func.lower(PastPaper.filename), "_", " "), "-", " ").contains(q)
+        )
+
+    results = query.order_by(PastPaper.id.desc()).limit(30).all()
+
+    user_papers = {
+        up.paper_id for up in UserPaper.query.filter_by(user_id=current_user.id).all()
+    }
+
+    return {
+        "results": [
+            {"id": p.id, "filename": p.filename,
+                "questions": len(p.questions), "owned": p.id in user_papers
+            } for p in results]}
+
+@app.route('/add-to-my-files/<int:paper_id>', methods=['POST'])
+@login_required
+def add_to_my_files(paper_id):
+    exists = UserPaper.query.filter_by(
+        user_id=current_user.id,
+        paper_id=paper_id
+    ).first()
+
+    if not exists:
+        db.session.add(UserPaper(
+            user_id=current_user.id,
+            paper_id=paper_id
+        ))
+        db.session.commit()
+
+    flash("Added to your files!", "success")
+    return redirect(url_for('view_paper', paper_id=paper_id))
+
+@app.route('/remove_paper/<int:paper_id>', methods=['POST'])
+@login_required
+def remove_paper(paper_id):
+
+    link = UserPaper.query.filter_by(
+        user_id=current_user.id,
+        paper_id=paper_id
+    ).first()
+
+    if link:
+        db.session.delete(link)
+        db.session.commit()
+        flash("Removed from your files.", "success")
+    else:
+        flash("Paper not found in your files.", "error")
+
+    return redirect(request.referrer or url_for('explore'))
+
 @app.route('/question/<int:question_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_question(question_id):
+    if paper.owner_id != current_user.id:
+        abort(403)
+    
     question = Question.query.get_or_404(question_id)
     if request.method == 'POST':
+
+
         question.text = request.form['text']
         question.tags = request.form['tags']
         db.session.commit()
@@ -124,6 +232,8 @@ def edit_question(question_id):
 @app.route('/delete/<int:paper_id>', methods=['POST'])
 @login_required
 def delete_paper(paper_id):
+    if paper.owner_id != current_user.id:
+        abort(403)
     paper = PastPaper.query.get_or_404(paper_id)
     file = PaperFile.query.get_or_404(paper.filename)
 
@@ -154,6 +264,9 @@ def view_paper(paper_id):
 @app.route('/paper/<int:paper_id>/update_name', methods=['POST'])
 @login_required
 def update_paper_name(paper_id):
+    if paper.owner_id != current_user.id:
+        abort(403)
+    
     paper = PastPaper.query.get_or_404(paper_id)
     file = PaperFile.query.get_or_404(paper.filename)
 
@@ -196,6 +309,8 @@ def uploaded_file(filename):
 @app.route('/process/<int:paper_id>', methods=['POST'])
 @login_required
 def process_paper(paper_id):
+    if paper.owner_id != current_user.id:
+        abort(403)
     from start import process_pdf, get_blocks, split_pdf_by_questions
     from cache import load_blocks, save_blocks
 
@@ -216,7 +331,7 @@ def process_paper(paper_id):
     return redirect(url_for('view_paper', paper_id=paper.id))
 
 def format_filename(filename):
-    name = filename.split('_', 1)[-1]
+    name = str(filename).split('_', 1)[-1]
     name = os.path.splitext(name)[0]
     name = re.sub(r'[-_]+', ' ', name)
     words = name.split()
@@ -244,9 +359,13 @@ def view_question(question_id):
     return render_template('view_question.html', question=question)
 
 @app.route('/paper/<int:paper_id>/add_question', methods=['GET', 'POST'])
+@login_required
 def add_question(paper_id):
+    if paper.owner_id != current_user.id:
+        abort(403)
+
     paper = PastPaper.query.get_or_404(paper_id)
-    # TODO
+    
 
     if request.method == 'POST':
         question_text = request.form.get('question_text', '').strip()
@@ -275,6 +394,9 @@ def add_question(paper_id):
 @app.route('/delete_question/<int:question_id>', methods=['POST'])
 @login_required
 def delete_question(question_id):
+    if paper.owner_id != current_user.id:
+        abort(403)
+
     question = Question.query.get_or_404(question_id)
 
     file_path = os.path.join(OUTPUT_DIR, question.filename)
@@ -293,6 +415,8 @@ def delete_question(question_id):
 @app.route('/delete_questions/<int:paper_id>', methods=['POST'])
 @login_required
 def delete_questions(paper_id):
+    if paper.owner_id != current_user.id:
+        abort(403)
     paper = PastPaper.query.get_or_404(paper_id)
 
     for q in paper.questions:

@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Explore Papers{% endblock %}
+
+{% block content %}
+
+<h1>Explore Papers</h1>
+
+<input 
+    type="text"
+    id="searchInput"
+    placeholder="Search past papers..."
+    class="search-input"
+/>
+
+
+<div id="results">
+
+    {% if papers %}
+        <div class="papers-list">
+
+            {% for paper in papers %}
+            <div class="paper-card-wrapper">
+
+                <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="paper-card-link">
+
+                    <div class="paper-card">
+
+                        <div class="paper-info">
+                            <h3>{{ format_filename(paper.filename) }}</h3>
+                            <p><strong>Questions:</strong> {{ paper.questions|length }}</p>
+                        </div>
+
+                        {% if paper.id in user_papers %}
+                            <span class="tag owned">In My Files</span>
+                        {% else %}
+                            <form class="delete-form" action="{{ url_for('add_to_my_files', paper_id=paper.id) }}" method="POST">
+
+                                <button type="submit" class="card-btn delete-btn">Add</button>
+
+                            </form>
+                        {% endif %}
+                    </div>
+
+                </a>
+
+
+
+            </div>
+            {% endfor %}
+
+        </div>
+    {% else %}
+        <p>No past papers found.</p>
+    {% endif %}
+
+<script>
+const input = document.getElementById("searchInput");
+const results = document.getElementById("results");
+
+let timeout = null;
+
+input.addEventListener("input", () => {
+    clearTimeout(timeout);
+
+    timeout = setTimeout(() => {
+        fetchResults(input.value);
+    }, 200);
+});
+
+function formatFilename(filename) {
+    // remove first prefix before underscore
+    let name = filename.split('_').slice(1).join('_');
+
+    // remove file extension
+    name = name.replace(/\.[^/.]+$/, "");
+
+    // replace - and _ with spaces
+    name = name.replace(/[-_]+/g, " ");
+
+    // split into words
+    let words = name.split(" ");
+
+    // format words
+    let formatted = words.map(w => {
+        if (["HSC", "IB", "PDF"].includes(w.toUpperCase())) {
+            return w.toUpperCase();
+        }
+        return w.charAt(0).toUpperCase() + w.slice(1);
+    });
+
+    return formatted.join(" ");
+}
+
+function fetchResults(query) {
+    fetch(`/api/search?q=${encodeURIComponent(query)}`)
+        .then(res => res.json())
+        .then(data => {
+
+            results.innerHTML = "";
+
+            if (!data.results || data.results.length === 0) {
+                results.innerHTML = "<p>No results found.</p>";
+                return;
+            }
+
+            let html = `<div class="papers-list">`;
+
+            data.results.forEach(paper => {
+                html += `
+                    <div class="paper-card-wrapper">
+
+                        <a href="/paper/${paper.id}" class="paper-card-link">
+
+                            <div class="paper-card">
+                                <div class="paper-info">
+                                    <h3>${formatFilename(paper.filename)}</h3>
+                                    <p><strong>Questions:</strong> ${paper.questions}</p>
+                                </div>
+                                ${
+                                    paper.owned
+                                    ? `<span class="tag owned">In My Files</span>`
+                                    : `
+                                        <form class="delete-form" method="POST" action="/add-to-my-files/${paper.id}">
+                                            <button class="card-btn delete-btn">Add</button>
+                                        </form>
+                                    `
+                                }
+
+                            </div>
+
+                        </a>
+
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+            results.innerHTML = html;
+        })
+        .catch(err => {
+            console.error("Search error:", err);
+            results.innerHTML = "<p>Error loading results.</p>";
+        });
+}
+</script>
+
+{% endblock %}
+

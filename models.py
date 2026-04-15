@@ -10,6 +10,14 @@ class PastPaper(db.Model):
         lazy=True,
         cascade="all, delete-orphan"
     )
+    uploaded_at = db.Column(db.DateTime, default=db.func.now())
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+class UserPaper(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    paper_id = db.Column(db.Integer, db.ForeignKey('past_paper.id'), nullable=False)
 
 class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -22,6 +30,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
+    papers = db.relationship('UserPaper', backref='user', lazy=True)
 
 class PaperFile(db.Model):
     id = db.Column(db.Integer)
