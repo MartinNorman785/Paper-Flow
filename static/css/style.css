@@ -233,3 +233,65 @@ a:hover {
 .alert {
     margin-bottom: 20px;
 }
+.flash-message {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    border: 1px solid transparent;
+}
+
+.flash-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.flash-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: inherit;
+    opacity: 0.4;
+    padding: 0 2px;
+    line-height: 1;
+    transition: color 0.15s;
+}
+.flash-close:hover { 
+    opacity: 1;
+    background: none;
+}
+
+.flash-danger .flash-close:hover  { color: #b91c1c; }
+.flash-success .flash-close:hover { color: #15803d; }
+.flash-warning .flash-close:hover { color: #d97706; }
+.flash-info .flash-close:hover    { color: #1d4ed8; }
+
+
+/* Danger / Error */
+.flash-danger  { background: #fff5f5; border-color: #fca5a5; color: #7f1d1d; }
+.flash-danger .flash-icon { background: #ef4444; color: white; }
+
+/* Success */
+.flash-success { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+.flash-success .flash-icon { background: #22c55e; color: white; }
+
+/* Warning */
+.flash-warning { background: #fffbeb; border-color: #fcd34d; color: #78350f; }
+.flash-warning .flash-icon { background: #f59e0b; color: white; }
+
+/* Info */
+.flash-info    { background: #eff6ff; border-color: #93c5fd; color: #1e3a8a; }
+.flash-info .flash-icon { background: #3b82f6; color: white; }
+

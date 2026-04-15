@@ -6,6 +6,9 @@
 <div class="container">
     <header style="display: flex; justify-content: space-between; align-items: center;">
         <h1>Manage Paper</h1>
+        {% from "macros.html" import flash_messages %}
+
+        {{ flash_messages() }}
         <a href="{{ url_for('index') }}"><button>Back to Past Papers</button></a>
     </header>
 

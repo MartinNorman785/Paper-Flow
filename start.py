@@ -1,17 +1,16 @@
 from google.cloud import documentai_v1 as documentai
 import re
 from split import crop_question
-from collections import defaultdict
 import os
 from flask import current_app
 from PyPDF2 import PdfReader, PdfWriter
 import io
 
 from app import Question
-from extensions import db, OUTPUT_DIR
+from extensions import db
 from cache import save_blocks, load_blocks
 from split import crop_question
-from models import Question
+from models import Question, QuestionFile
 
 
 PROJECT_ID = "able-nature-490822-p7"
@@ -147,13 +146,11 @@ def extract_question_number(text):
     return float('inf')  # fallback if no number found
 
 
-def split_pdf_by_questions(input_pdf, blocks, paper_id):
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+def split_pdf_by_questions(filename, blocks, paper_id):
     blocks = merge_blocks(blocks)
 
     # Group blocks by page
     all_blocks = sorted(blocks, key=lambda b: (b["page"], b["top"]))
-    print(all_blocks)
 
     detected_questions = []
     questions_text = []
@@ -202,18 +199,19 @@ def split_pdf_by_questions(input_pdf, blocks, paper_id):
         else:
             i += 1
 
-    print(len(detected_questions), len(questions_text))
-
     with current_app.app_context():
         # Crop PDFs in order
         for idx, q in enumerate(detected_questions, start=1):
-            print(idx)
-            output_path = os.path.join(current_app.config['UPLOAD_FOLDER'], "questions", f"question_{idx}.pdf")
-            crop_question(input_pdf, output_path, q["page_start"], q["y_top"], q["y_bottom"])
+            output_path = f"{filename[:-4]}_question_{idx}.pdf"
+            file = crop_question(filename, q["page_start"], q["y_top"], q["y_bottom"])
             
             # Save question record
-            question = Question(paper_id=paper_id, filename=os.path.basename(output_path), text=questions_text[idx-1])
+            question = Question(paper_id=paper_id, filename=output_path, text=questions_text[idx-1])
+            questionfile = QuestionFile(filename=output_path, data=file.read()) 
+
             db.session.add(question)
+            db.session.add(questionfile)
+
         db.session.commit()
     return detected_questions, questions_text
 

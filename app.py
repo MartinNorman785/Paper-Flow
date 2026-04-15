@@ -1,23 +1,22 @@
 # app.py
-from flask import Flask, render_template, current_app, request, redirect, url_for, send_from_directory, flash, send_from_directory, session, abort
+from flask import Flask, render_template, current_app, request, redirect, url_for, send_file, send_from_directory, flash, send_from_directory, session, abort
 from flask_sqlalchemy import SQLAlchemy
 import os
+from io import BytesIO
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
-from extensions import db, OUTPUT_DIR
-from models import PastPaper, Question, User
+from extensions import db
+from models import PastPaper, Question, User, PaperFile, QuestionFile
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///papers.db'
-app.config['UPLOAD_FOLDER'] = 'uploads'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 app.secret_key = os.urandom(24)
-
-
 
 
 @app.context_processor
@@ -48,8 +47,10 @@ def register():
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
             session['user_id'] = user.id
+            flash('You have been registered successfully.', 'success')
             return redirect(url_for('index'))
-        return "Invalid credentials"
+        flash('Invalid username or password.', 'error')
+        return redirect(url_for('index'))
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -58,13 +59,16 @@ def login():
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password_hash, request.form['password']):
             session['user_id'] = user.id
+            flash('You have been logged in successfully.', 'success')
             return redirect(url_for('index'))
-        return "Invalid credentials"
+        flash('Invalid username or password.', 'error')
+        return render_template('login.html')
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
     session.pop('user_id', None)
+    flash('You have been logged in successfully.', 'success')
     return redirect(url_for('login'))
 
 @app.route('/')
@@ -78,7 +82,6 @@ def index():
 @login_required
 def upload():
     message = None
-    uploaded_paper = None
 
     if request.method == 'POST':
         if 'file' not in request.files:
@@ -88,24 +91,20 @@ def upload():
             if file.filename == '':
                 message = "No file selected."
             elif file.filename.endswith('.pdf'):
-                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-                from werkzeug.utils import secure_filename
                 safe_name = secure_filename(file.filename)
 
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], safe_name)
-                file.save(filepath)
-
                 paper = PastPaper(filename=safe_name)
-                db.session.add(paper)
-                db.session.commit()
+                paperfile = PaperFile(filename=safe_name, data=file.read())
 
-                uploaded_paper = paper
+                db.session.add(paper)
+                db.session.add(paperfile)
+
+                db.session.commit()
                 message = f"Successfully uploaded {safe_name}!"
             else:
                 message = "Invalid file type. Only PDFs are allowed."
 
-    return render_template('upload.html', message=message, uploaded_paper=uploaded_paper)
+    return render_template('upload.html', message=message)
 
 @app.route('/question/<int:question_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -122,14 +121,11 @@ def edit_question(question_id):
 @login_required
 def delete_paper(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
-
-    # Build the full file path
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], paper.filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
+    file = PaperFile.query.get_or_404(paper.filename)
 
     # Delete the database record
     db.session.delete(paper)
+    db.session.delete(file)
     db.session.commit()
 
     flash("Past paper deleted successfully.", "success")
@@ -140,17 +136,14 @@ def delete_paper(paper_id):
 @app.route('/question_pdf/<filename>')
 @login_required
 def question_pdf(filename):
-    questions_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], "questions")
-    file_path = os.path.join(questions_dir, filename)
-    if not os.path.exists(file_path):
-        abort(404)
-    return send_from_directory(questions_dir, filename)
+    file = QuestionFile.query.get_or_404(filename)
+    return send_file(BytesIO(file.data))
 
 @app.route('/paper/<int:paper_id>')
 @login_required
 def view_paper(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
-    # check query param ?edit_name=1 to toggle inline edit form
+
     edit_name = request.args.get('edit_name') == '1'
     return render_template('view_paper.html', paper=paper, edit_name=edit_name)
 
@@ -158,6 +151,8 @@ def view_paper(paper_id):
 @login_required
 def update_paper_name(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
+    file = PaperFile.query.get_or_404(paper.filename)
+
 
     new_name = secure_filename(request.form['filename'].strip())
 
@@ -165,17 +160,7 @@ def update_paper_name(paper_id):
         if not new_name.lower().endswith('.pdf'):
             new_name += '.pdf'
 
-        old_path = os.path.join(app.config['UPLOAD_FOLDER'], paper.filename)
-        new_path = os.path.join(app.config['UPLOAD_FOLDER'], new_name)
-
-        # Prevent overwrite
-        if os.path.exists(new_path):
-            flash("A file with that name already exists.", "error")
-            return redirect(url_for('view_paper', paper_id=paper.id))
-
-        # Rename file
-        if os.path.exists(old_path):
-            os.rename(old_path, new_path)
+        file.filename = new_name
 
         # Update DB
         paper.filename = new_name
@@ -188,24 +173,27 @@ def update_paper_name(paper_id):
 @app.route('/uploads/<path:filename>')
 @login_required
 def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    paper = PaperFile.query.filter_by(filename=filename).first_or_404()
+    return send_file(BytesIO(paper.data), mimetype='application/pdf')
 
 @app.route('/process/<int:paper_id>', methods=['POST'])
 @login_required
 def process_paper(paper_id):
-    from start import process_pdf, get_blocks, split_pdf_by_questions, questions_from_coordinates
-    from cache import load_blocks
+    from start import process_pdf, get_blocks, split_pdf_by_questions
+    from cache import load_blocks, save_blocks
 
     paper = PastPaper.query.get_or_404(paper_id)
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], paper.filename)
+    file_path = paper.filename
 
     # Load or process blocks
     blocks = load_blocks(paper.filename)
+    
     if blocks is None:
-        blocks = get_blocks(document)
+        document = process_pdf(paper.filename)
+        blocks = get_blocks(paper.filename)
         save_blocks(blocks, paper.filename)
 
-    questions, text = split_pdf_by_questions(file_path, blocks, paper.id)
+    split_pdf_by_questions(file_path, blocks, paper.id)
 
     return redirect(url_for('view_paper', paper_id=paper.id))
 
@@ -223,6 +211,7 @@ def view_question(question_id):
 @app.route('/paper/<int:paper_id>/add_question', methods=['GET', 'POST'])
 def add_question(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
+    # TODO
 
     if request.method == 'POST':
         question_text = request.form.get('question_text', '').strip()
@@ -262,6 +251,7 @@ def delete_question(question_id):
     db.session.commit()
 
     flash("Deleted", "success")
+    # TODO
     return redirect(url_for('view_paper', paper_id=question.paper_id))
 
 
@@ -269,13 +259,10 @@ def delete_question(question_id):
 @login_required
 def delete_questions(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
-    questions = Question.query.filter_by(paper_id=paper_id).all()
 
     for q in paper.questions:
-        if q.filename:  # Only try to delete if filename is not None
-            file_path = os.path.join(OUTPUT_DIR, q.filename)
-            if os.path.exists(file_path):
-                os.remove(file_path)
+        if q.filename:
+            db.session.delete(QuestionFile.query.get_or_404(q.filename))
         db.session.delete(q)
 
     db.session.commit()
@@ -287,4 +274,4 @@ def delete_questions(paper_id):
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True, port=5004)
+    app.run(debug=True, port=5001)

@@ -6,6 +6,9 @@
 <div class="upload-page">
     <header>
         <h1>Upload Past Paper</h1>
+        {% from "macros.html" import flash_messages %}
+
+        {{ flash_messages() }}
         <p>Select a PDF to upload or drag & drop the file below.</p>
     </header>
 

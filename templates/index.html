@@ -5,6 +5,9 @@
 {% block content %}
 <header>
     <h1>Past Papers</h1>
+    {% from "macros.html" import flash_messages %}
+
+    {{ flash_messages() }}
     <p>Manage your uploaded past papers and questions easily.</p>
     <a href="{{ url_for('upload') }}"><button>Upload New Paper</button></a>
 </header>
