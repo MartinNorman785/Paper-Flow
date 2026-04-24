@@ -5,10 +5,9 @@
 {% block content %}
     <header style="display: flex; justify-content: space-between; align-items: center;">
         <h1>Question {{ question.id }}</h1>
-        <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}">
-            <button>Back to Past Paper</button>
-        </a>
+
     </header>
+
 {% if question.filename %}
     <h3>PDF Preview</h3>
 
@@ -18,9 +17,18 @@
     <a href="{{ url_for('static', filename=question.filename) }}" download>
         <button style="background-color: #4CAF50; color: white; margin-bottom: 35px;">Download PDF</button>
     </a>
+    <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}">
+        <button>Back to Past Paper</button>
+    </a>
 {% else %}
+<div style="display: flex; justify-content: space-between; align-items: center;">
     <p>No PDF available for this question.</p>
+        <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}">
+        <button>Back to Past Paper</button>
+    </a>
+</div>
 {% endif %}
+
 
 <div style="padding: 10px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 15px;">
     <p>{{ question.text }}</p>

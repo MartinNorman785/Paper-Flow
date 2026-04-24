@@ -217,10 +217,12 @@ def remove_paper(paper_id):
 @app.route('/question/<int:question_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_question(question_id):
+    question = Question.query.get_or_404(question_id)
+    paper = PastPaper.query.get_or_404(question.paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
     
-    question = Question.query.get_or_404(question_id)
+
     if request.method == 'POST':
 
 
@@ -233,9 +235,9 @@ def edit_question(question_id):
 @app.route('/delete/<int:paper_id>', methods=['POST'])
 @login_required
 def delete_paper(paper_id):
+    paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
-    paper = PastPaper.query.get_or_404(paper_id)
     file = PaperFile.query.get_or_404(paper.filename)
 
     # Delete the database record
@@ -265,10 +267,10 @@ def view_paper(paper_id):
 @app.route('/paper/<int:paper_id>/update_name', methods=['POST'])
 @login_required
 def update_paper_name(paper_id):
+    paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
     
-    paper = PastPaper.query.get_or_404(paper_id)
     file = PaperFile.query.get_or_404(paper.filename)
 
     new_name = unformat_filename(request.form['filename'])
@@ -310,6 +312,7 @@ def uploaded_file(filename):
 @app.route('/process/<int:paper_id>', methods=['POST'])
 @login_required
 def process_paper(paper_id):
+    paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
     from start import process_pdf, get_blocks, split_pdf_by_questions
@@ -362,11 +365,9 @@ def view_question(question_id):
 @app.route('/paper/<int:paper_id>/add_question', methods=['GET', 'POST'])
 @login_required
 def add_question(paper_id):
+    paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
-
-    paper = PastPaper.query.get_or_404(paper_id)
-    
 
     if request.method == 'POST':
         question_text = request.form.get('question_text', '').strip()
@@ -395,30 +396,28 @@ def add_question(paper_id):
 @app.route('/delete_question/<int:question_id>', methods=['POST'])
 @login_required
 def delete_question(question_id):
+    question = Question.query.get_or_404(question_id)
+    paper = PastPaper.query.get_or_404(question.paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
 
-    question = Question.query.get_or_404(question_id)
-
-    file_path = os.path.join(OUTPUT_DIR, question.filename)
-
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    if question.filename is not None:
+        file = QuestionFile.query.get_or_404(question.filename)
+        db.session.delete(file)
 
     db.session.delete(question)
     db.session.commit()
 
     flash("Deleted", "success")
-    # TODO
     return redirect(url_for('view_paper', paper_id=question.paper_id))
 
 
 @app.route('/delete_questions/<int:paper_id>', methods=['POST'])
 @login_required
 def delete_questions(paper_id):
+    paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
-    paper = PastPaper.query.get_or_404(paper_id)
 
     for q in paper.questions:
         if q.filename:
@@ -427,7 +426,6 @@ def delete_questions(paper_id):
 
     db.session.commit()
     flash("All questions deleted.", "success")
-
     return redirect(url_for('view_paper', paper_id=paper_id))
 
 def user_has_paper(user, paper):

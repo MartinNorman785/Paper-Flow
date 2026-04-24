@@ -4,7 +4,7 @@
 
 {% block content %}
 <section style="margin: 20px;">
-    <h2>Add Question for "{{ paper.filename }}"</h2>
+    <h2>Add Question for "{{ format_filename(paper.filename) }}"</h2>
 
     <form action="{{ url_for('add_question', paper_id=paper.id) }}" method="POST" style="display: flex; flex-direction: column; gap: 10px; max-width: 600px;">
         <label for="question_text">Question Text:</label>

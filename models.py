@@ -14,10 +14,9 @@ class PastPaper(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 class UserPaper(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-
+    id = db.Column(db.Integer)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    paper_id = db.Column(db.Integer, db.ForeignKey('past_paper.id'), nullable=False)
+    paper_id = db.Column(db.Integer, db.ForeignKey('past_paper.id'), nullable=False, primary_key=True)
 
 class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
