@@ -12,7 +12,7 @@
         <a href="{{ url_for('index') }}"><button>Back to Past Papers</button></a>
     </header>
 
-    <section class="paper-actions" style="margin: 20px 0;">
+    <section class="paper-actions" style="margin: 20px 0; display: block; width: 100%;">
         {% if edit_name and paper.owner_id == current_user.id %}
             <form method="POST" action="{{ url_for('update_paper_name', paper_id=paper.id) }}"
                 style="display: flex; justify-content: space-between; align-items: center;">
@@ -52,17 +52,25 @@
                     </form>
                 </div>
                 {% else %}
-                <div style="display: flex; gap: 10px;">
-                    <form method="POST" action="{{ url_for('remove_paper', paper_id=paper.id) }}"
-                        onsubmit="return confirm('Are you sure you want to remove this paper from your files?');">
-                        <button style="background-color: #cd4236;">Remove Paper from Files</button>
-                    </form>
-                </div>
+                    {% if has_paper %}
+                    <div style="display: flex; gap: 10px;">
+                        <form method="POST" action="{{ url_for('remove_paper', paper_id=paper.id) }}"
+                            onsubmit="return confirm('Are you sure you want to remove this paper from your files?');">
+                            <button style="background-color: #cd4236;">Remove Paper from Files</button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div style="display: flex; gap: 10px;">
+                        <form action="{{ url_for('add_to_my_files', paper_id=paper.id) }}" method="POST">
+                            <button type="submit" class="card-btn delete-btn">Add</button>
+                        </form>
+                    </div>
+                    {% endif %}
                 {% endif %}
             </div>
         {% endif %}
     </section>
-    <section style="margin: 20px 0;">
+    <section style="margin: 20px 0; display: block; width: 100%;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <span style="font-size: 1.2em; font-weight: bold;">Preview</span>
 

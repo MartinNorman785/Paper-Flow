@@ -3,6 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user, L
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.sql import exists
 from sqlalchemy import func
 from functools import wraps
 from io import BytesIO
@@ -259,7 +260,7 @@ def view_paper(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
 
     edit_name = request.args.get('edit_name') == '1'
-    return render_template('view_paper.html', paper=paper, edit_name=edit_name)
+    return render_template('view_paper.html', paper=paper, edit_name=edit_name, has_paper=user_has_paper(current_user, paper))
 
 @app.route('/paper/<int:paper_id>/update_name', methods=['POST'])
 @login_required
@@ -428,6 +429,14 @@ def delete_questions(paper_id):
     flash("All questions deleted.", "success")
 
     return redirect(url_for('view_paper', paper_id=paper_id))
+
+def user_has_paper(user, paper):
+    return db.session.query(
+        exists().where(
+            UserPaper.user_id == user.id,
+            UserPaper.paper_id == paper.id
+        )
+    ).scalar()
 
 # --- Main ---
 if __name__ == '__main__':
