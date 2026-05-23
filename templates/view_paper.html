@@ -94,8 +94,14 @@
 
             {% if paper.owner_id == current_user.id %}
             <div style="display: flex; gap: 10px;">
+
+                <a href="{{ url_for('split', paper_id=paper.id) }}">
+                    <button type="submit" class="btn btn-primary">
+                        Split into Questions
+                    </button>
+                </a>
                 <a href="{{ url_for('add_question', paper_id=paper.id) }}">
-                    <button style="background-color: #4CAF50; color: white;">
+                    <button type="submit" class="btn btn-primary">
                         Add Question
                     </button>
                 </a>

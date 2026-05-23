@@ -3,15 +3,18 @@ from flask_login import login_user, logout_user, login_required, current_user, L
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from flask_sqlalchemy import SQLAlchemy
+from pypdf import PdfReader, PdfWriter
 from sqlalchemy.sql import exists
 from sqlalchemy import func
 from functools import wraps
 from io import BytesIO
+import tempfile
 import uuid
 import os
 import re
 
 from models import PastPaper, Question, User, PaperFile, QuestionFile, UserPaper
+from split import crop_question
 from extensions import db
 
 app = Flask(__name__)
@@ -127,6 +130,104 @@ def upload():
 
     return render_template('upload.html', message=message)
 
+@app.route('/paper/<int:paper_id>/split')
+@login_required
+def split(paper_id):
+    paper = PastPaper.query.get_or_404(paper_id)
+
+    if request.method == 'POST':
+        import json
+        from cropper import crop_question
+
+        data = request.get_json()
+        splits = data['splits']
+        paper_file = PaperFile.query.get_or_404(paper.filename)
+
+        for page_data in splits:
+            page_num = page_data['page']
+            lines = sorted(page_data['lines'])
+
+            regions = []
+            prev = 0.0
+
+            for y in lines:
+                regions.append((prev, y))
+                prev = y
+
+            regions.append((prev, 1.0))
+            for i, (top, bottom) in enumerate(regions):
+                pdf_bytes = crop_question(BytesIO(paper_file.data), page_num, top, bottom)
+
+                filename = f"{uuid.uuid4().hex}.pdf"
+                qfile = QuestionFile(filename=filename,data=pdf_bytes)
+                question = Question(text=f"Question {i+1}", paper_id=paper.id, filename=filename)
+
+                db.session.add(qfile)
+                db.session.add(question)
+
+        db.session.commit()
+        return {"success": True}
+    return render_template('split.html', paper=paper)
+
+@app.route('/paper/<int:paper_id>/save_splits', methods=['POST'])
+@login_required
+def save_splits(paper_id):
+ 
+    paper = PastPaper.query.get_or_404(paper_id)
+ 
+    if paper.owner_id != current_user.id:
+        abort(403)
+ 
+    paper_file = PaperFile.query.get_or_404(paper.filename)
+ 
+    # Each question is an explicit {start_page, start_y, end_page, end_y} object
+    questions = request.get_json().get('questions', [])
+ 
+    # Write PDF to a temp file once so crop_question can read it by path
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(paper_file.data)
+        tmp_path = tmp.name
+ 
+    try:
+        reader = PdfReader(BytesIO(paper_file.data))
+ 
+        for i, q in enumerate(questions):
+ 
+            writer = PdfWriter()
+ 
+            for page_num in range(q["start_page"], q["end_page"] + 1):
+ 
+                if q["start_page"] == q["end_page"]:
+                    y_top, y_bottom = q["start_y"], q["end_y"]
+ 
+                elif page_num == q["start_page"]:
+                    y_top, y_bottom = q["start_y"], 1.0
+ 
+                elif page_num == q["end_page"]:
+                    y_top, y_bottom = 0.0, q["end_y"]
+ 
+                else:
+                    y_top, y_bottom = 0.0, 1.0
+ 
+                cropped_bytes = crop_question(tmp_path, page_num, y_top, y_bottom)
+                writer.add_page(PdfReader(BytesIO(cropped_bytes)).pages[0])
+ 
+            output = BytesIO()
+            writer.write(output)
+ 
+            filename = f"{uuid.uuid4().hex}.pdf"
+ 
+            db.session.add(QuestionFile(filename=filename, data=output.getvalue()))
+            db.session.add(Question(text=f"Question {i + 1}", paper_id=paper.id, filename=filename))
+ 
+    finally:
+        os.unlink(tmp_path)
+ 
+    db.session.commit()
+ 
+    return {"success": True, "redirect": url_for('view_paper', paper_id=paper.id)}
+
+
 @app.route('/explore')
 @login_required
 def explore():
@@ -229,7 +330,7 @@ def edit_question(question_id):
         question.text = request.form['text']
         question.tags = request.form['tags']
         db.session.commit()
-        return redirect(url_for('view_paper', paper_id=question.paper_id))
+        return redirect(url_for('view_question', question_id=question.id))
     return render_template('edit_question.html', question=question)
 
 @app.route('/delete/<int:paper_id>', methods=['POST'])
@@ -254,7 +355,7 @@ def delete_paper(paper_id):
 @login_required
 def question_pdf(filename):
     file = QuestionFile.query.get_or_404(filename)
-    return send_file(BytesIO(file.data))
+    return send_file(BytesIO(file.data), mimetype="application/pdf", download_name=file.filename)
 
 @app.route('/paper/<int:paper_id>')
 @login_required

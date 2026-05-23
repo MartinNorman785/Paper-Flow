@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+ 
+{% block title %}Split Paper — PaperFlow{% endblock %}
+ 
+{% block content %}
+<header style="display: flex; justify-content: space-between; align-items: center;">
+    <h1>Split Paper</h1>
+    {% from "macros.html" import flash_messages %}
+
+    {{ flash_messages() }}
+    <a href="{{ url_for('view_paper', paper_id=paper.id) }}"><button>Back to Past Paper</button></a>
+</header>
+
+ 
+<div class="split-layout">
+ 
+    <div class="pdf-column">
+        <div id="pages"></div>
+    </div>
+ 
+    <div class="sidebar-column">
+        <div class="sidebar-header">
+            <h2>{{ format_filename(paper.filename) }}</h2>
+        </div>
+ 
+        <div class="sidebar-body">
+ 
+            <div class="instructions-card">
+                <h5>How to mark questions</h5>
+                <ol>
+                    <li><strong>Double-click</strong> to place a question bracket (green = start, red = end).</li>
+                    <li><strong>Drag</strong> either line to resize the region.</li>
+                    <li><strong>Right-click</strong> either line to remove the pair.</li>
+                </ol>
+            </div>
+ 
+            <div id="question-list"></div>
+ 
+            <div class="sidebar-actions">
+                <button class="btn btn-primary w-100" onclick="saveSplits()">
+                    Save Questions
+                </button>
+                <button style="background-color: #cd4236"
+                    onclick="if(confirm('Are you sure you want to cancel? Unsaved splits will be lost.')) window.location='{{ url_for('view_paper', paper_id=paper.id) }}'">
+                    Cancel
+                </button>
+            </div>
+ 
+        </div>
+    </div>
+</div>
+ 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+const pdfUrl = "{{ url_for('uploaded_file', filename=paper.filename) }}";
+const pagesDiv = document.getElementById("pages");
+const questionListDiv = document.getElementById("question-list");
+ 
+const COLORS = ["#0d6efd","#6610f2","#fd7e14","#20c997","#6f42c1","#d63384"];
+ 
+// pairs: [{ color, startLine, endLine, region }]
+const pairs = [];
+ 
+// ── drag helper (shared across all lines) ─────────────────────────────────
+let dragging = null; // { line, pair, role }
+ 
+document.addEventListener("mouseup", () => { dragging = null; });
+ 
+document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+ 
+    const { line, pair, role } = dragging;
+    const allPages = document.querySelectorAll(".page-container");
+ 
+    for (const page of allPages) {
+        const rect = page.getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            if (line.parentElement !== page) page.appendChild(line);
+ 
+            let yPos = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+ 
+            // Prevent start crossing end and vice-versa (only when on the same page)
+            const partner = role === "start" ? pair.endLine : pair.startLine;
+            if (parseInt(page.dataset.page) === parseInt(partner.dataset.page)) {
+                const partnerY = parseFloat(partner.style.top);
+                if (role === "start") yPos = Math.min(yPos, partnerY - 4);
+                else                  yPos = Math.max(yPos, partnerY + 4);
+            }
+ 
+            line.style.top = yPos + "px";
+            line.dataset.page = page.dataset.page;
+            line.dataset.y = yPos / rect.height;
+            break;
+        }
+    }
+ 
+    updateRegionShading(pair);
+    rebuildSidebar();
+});
+ 
+// ── create a single draggable line ────────────────────────────────────────
+function pairNum(pair) { return pairs.indexOf(pair) + 1; }
+ 
+function updateLabels(pair) {
+    const n = pairNum(pair);
+    pair.startLine.querySelector(".bracket-label").textContent = `▶ Q${n} start`;
+    pair.endLine.querySelector(".bracket-label").textContent   = `■ Q${n} end`;
+}
+ 
+function makeLine(container, yPx, pageNum, role, pair) {
+    const line = document.createElement("div");
+    line.className = `bracket-line ${role}`;
+    line.style.top = yPx + "px";
+    line.dataset.page = pageNum;
+    line.dataset.y = yPx / container.offsetHeight;
+ 
+    const label = document.createElement("div");
+    label.className = "bracket-label";
+    label.style.background = pair.color;
+    // num isn't known yet when pair is being constructed; set after push via updateLabels
+    label.textContent = role === "start" ? `▶ Q? start` : `■ Q? end`;
+    line.appendChild(label);
+ 
+    line.addEventListener("mousedown", e => {
+        e.preventDefault();
+        dragging = { line, pair, role };
+    });
+ 
+    line.addEventListener("contextmenu", e => {
+        e.preventDefault();
+        removePair(pair);
+    });
+ 
+    container.appendChild(line);
+    return line;
+}
+ 
+// ── create a pair on double-click ────────────────────────────────────────
+function createPair(container, yPx, pageNum) {
+    const num   = pairs.length + 1;
+    const color = COLORS[(num - 1) % COLORS.length];
+ 
+    const pair = { color, startLine: null, endLine: null, region: null };
+ 
+    const startY = Math.max(0, yPx - 15);
+    const endY   = Math.min(container.offsetHeight, yPx + 15);
+ 
+    pair.startLine = makeLine(container, startY, pageNum, "start", pair);
+    pair.endLine   = makeLine(container, endY,   pageNum, "end",   pair);
+ 
+    pairs.push(pair);
+    updateLabels(pair);
+    updateRegionShading(pair);
+    rebuildSidebar();
+}
+ 
+function removePair(pair) {
+    pair.startLine.remove();
+    pair.endLine.remove();
+    if (pair.region) pair.region.remove();
+    pairs.splice(pairs.indexOf(pair), 1);
+    // Renumber and recolour remaining pairs by their new index
+    pairs.forEach((p, i) => {
+        p.color = COLORS[i % COLORS.length];
+        p.startLine.querySelector(".bracket-label").style.background = p.color;
+        p.endLine.querySelector(".bracket-label").style.background   = p.color;
+        if (p.region) p.region.style.background = p.color;
+        updateLabels(p);
+    });
+    rebuildSidebar();
+}
+ 
+// ── shade the region between start and end (same page only) ───────────────
+function updateRegionShading(pair) {
+    if (pair.region) pair.region.remove();
+ 
+    const startPage = parseInt(pair.startLine.dataset.page);
+    const endPage   = parseInt(pair.endLine.dataset.page);
+    if (startPage !== endPage) return;
+ 
+    const container = pair.startLine.parentElement;
+    const startY = parseFloat(pair.startLine.style.top);
+    const endY   = parseFloat(pair.endLine.style.top);
+    const top    = Math.min(startY, endY);
+    const height = Math.abs(endY - startY);
+ 
+    const region = document.createElement("div");
+    region.className = "bracket-region";
+    region.style.top    = top + "px";
+    region.style.height = height + "px";
+    region.style.background = pair.color;
+    container.appendChild(region);
+    pair.region = region;
+}
+ 
+// ── sidebar question list ─────────────────────────────────────────────────
+function rebuildSidebar() {
+    questionListDiv.innerHTML = "";
+    pairs.forEach(pair => {
+        const tag = document.createElement("div");
+        tag.className = "question-tag";
+ 
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dot.style.background = pair.color;
+ 
+        tag.appendChild(dot);
+        tag.appendChild(document.createTextNode(
+            `Question ${pairNum(pair)} — p${parseInt(pair.startLine.dataset.page) + 1} → p${parseInt(pair.endLine.dataset.page) + 1}`
+        ));
+        questionListDiv.appendChild(tag);
+    });
+}
+ 
+// ── render PDF ────────────────────────────────────────────────────────────
+pdfjsLib.getDocument(pdfUrl).promise.then(async pdf => {
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page     = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas   = document.createElement("canvas");
+        canvas.height  = viewport.height;
+        canvas.width   = viewport.width;
+        canvas.className = "pdf-page";
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+ 
+        const container = document.createElement("div");
+        container.className = "page-container";
+        container.dataset.page = pageNum - 1;
+        container.appendChild(canvas);
+ 
+        container.addEventListener("dblclick", e => {
+            const rect = container.getBoundingClientRect();
+            createPair(container, e.clientY - rect.top, pageNum - 1);
+        });
+ 
+        pagesDiv.appendChild(container);
+    }
+});
+ 
+// ── save ──────────────────────────────────────────────────────────────────
+async function saveSplits() {
+    const questions = pairs.map(pair => ({
+        start_page: parseInt(pair.startLine.dataset.page),
+        start_y:    parseFloat(pair.startLine.dataset.y),
+        end_page:   parseInt(pair.endLine.dataset.page),
+        end_y:      parseFloat(pair.endLine.dataset.y),
+    }));
+ 
+    const response = await fetch(
+        "{{ url_for('save_splits', paper_id=paper.id) }}",
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ questions })
+        }
+    );
+ 
+    const data = await response.json();
+    if (data.success) window.location.href = data.redirect;
+}
+</script>
+{% endblock %}
