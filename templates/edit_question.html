@@ -14,12 +14,12 @@
             <form method="post">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <label for="text"><strong>Question Text:</strong></label>
-                    <textarea id="text" name="text">{{ question.text }}</textarea></div>
+                    <textarea id="text" name="text" style="width: 84.5%">{{ question.text }}</textarea>
                 </div>
-                <br>
+
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <label for="tags"><strong>Tags (Comma Separated):</strong></label>
-                    <input type="text" id="tags" name="tags" value="{{ question.tags }}" placeholder="e.g. algebra, integration, probability">
+                    <label style="width: 10%" for="tags"><strong>Tags (Comma Separated):</strong></label>
+                    <input style="width: 84.5%" type="text" id="tags" name="tags" value="{{ question.tags }}" placeholder="e.g. algebra, integration, probability">
                 </div>
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <button type="submit" >Save Changes</button>

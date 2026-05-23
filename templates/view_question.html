@@ -30,11 +30,10 @@
 {% endif %}
 
 
-<div style="padding: 10px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 15px;">
+<div style="padding-left: 10px; border: 1px solid #ccc; border-radius: 5px; display: flex; justify-content: space-between">
     <p>{{ question.text }}</p>
-
     {% if question.tags %}
-        <p>
+        <p style="padding-right: 5px">
             {% for tag in question.tags.split(',') %}
                 <span class="tag">{{ tag.strip() }}</span>
             {% endfor %}
