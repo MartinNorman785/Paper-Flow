@@ -3,147 +3,152 @@
 {% block title %}Explore Papers{% endblock %}
 
 {% block content %}
-
-<h1>Explore Papers</h1>
-
-<input 
-    type="text"
-    id="searchInput"
-    placeholder="Search past papers..."
-    class="search-input"
-/>
-
-
-<div id="results">
-
-    {% if papers %}
-        <div class="papers-list">
-
-            {% for paper in papers %}
-            <div class="paper-card-wrapper">
-
-                <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="paper-card-link">
-
-                    <div class="paper-card">
-
-                        <div class="paper-info">
-                            <h3>{{ format_filename(paper.filename) }}</h3>
-                            <p><strong>Questions:</strong> {{ paper.questions|length }}</p>
-                        </div>
-
-                        {% if paper.id in user_papers %}
-                            <span class="tag owned">In My Files</span>
-                        {% else %}
-                            <form class="delete-form" action="{{ url_for('add_to_my_files', paper_id=paper.id) }}" method="POST">
-
-                                <button type="submit" class="card-btn delete-btn">Add</button>
-
-                            </form>
-                        {% endif %}
-                    </div>
-
-                </a>
-
-
-
-            </div>
-            {% endfor %}
-
+<div class="explore-layout">
+ 
+    <div class="explore-topbar">
+        <h1>Explore</h1>
+        <div class="explore-search">
+            <span>🔍</span>
+            <input type="text" id="searchInput" placeholder="Search papers, questions, tags…">
         </div>
-    {% else %}
-        <p>No past papers found.</p>
-    {% endif %}
-
+    </div>
+ 
+    <div id="results">
+        <!-- Papers section -->
+        <div class="results-section" id="papers-section">
+            <div class="results-section-label">Papers</div>
+            {% if papers %}
+            <div class="papers-grid">
+                {% for paper in papers %}
+                <div class="paper-card-wrapper">
+                    <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="paper-card-link">
+                        <div class="paper-card">
+                            <h3>{{ format_filename(paper.filename) }}</h3>
+                            <div class="paper-meta">
+                                <span class="meta-pill">{{ paper.questions|length }} question{{ 's' if paper.questions|length != 1 }}</span>
+                            </div>
+                            <div class="paper-card-footer">
+                                {% if paper.id in user_papers %}
+                                    <span class="tag owned">In My Files</span>
+                                {% else %}
+                                    <form method="POST" action="{{ url_for('add_to_my_files', paper_id=paper.id) }}"
+                                          onclick="event.stopPropagation();">
+                                        <button type="submit" class="btn-card-add">+ Add</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+                <div class="empty-state">No papers yet.</div>
+            {% endif %}
+        </div>
+ 
+        <!-- Questions section (hidden until search) -->
+        <div class="results-section" id="questions-section" style="display:none;">
+            <div class="results-section-label">Questions</div>
+            <div class="questions-list" id="questions-list"></div>
+        </div>
+    </div>
+ 
+</div>
+ 
 <script>
 const input = document.getElementById("searchInput");
-const results = document.getElementById("results");
-
 let timeout = null;
-
+ 
 input.addEventListener("input", () => {
     clearTimeout(timeout);
-
-    timeout = setTimeout(() => {
-        fetchResults(input.value);
-    }, 200);
+    timeout = setTimeout(() => fetchResults(input.value), 200);
 });
-
+ 
 function formatFilename(filename) {
-    // remove first prefix before underscore
     let name = filename.split('_').slice(1).join('_');
-
-    // remove file extension
-    name = name.replace(/\.[^/.]+$/, "");
-
-    // replace - and _ with spaces
-    name = name.replace(/[-_]+/g, " ");
-
-    // split into words
-    let words = name.split(" ");
-
-    // format words
-    let formatted = words.map(w => {
-        if (["HSC", "IB", "PDF"].includes(w.toUpperCase())) {
-            return w.toUpperCase();
-        }
-        return w.charAt(0).toUpperCase() + w.slice(1);
-    });
-
-    return formatted.join(" ");
+    name = name.replace(/\.[^/.]+$/, "").replace(/[-_]+/g, " ");
+    return name.split(" ").map(w =>
+        ["HSC","IB","PDF"].includes(w.toUpperCase()) ? w.toUpperCase()
+        : w.charAt(0).toUpperCase() + w.slice(1)
+    ).join(" ");
 }
-
+ 
+function esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+ 
+function renderPapers(papers) {
+    if (!papers.length) return `<div class="empty-state">No papers found.</div>`;
+    return `<div class="papers-grid">${papers.map(p => `
+        <div class="paper-card-wrapper">
+            <a href="/paper/${p.id}" class="paper-card-link">
+                <div class="paper-card">
+                    <h3>${esc(formatFilename(p.filename))}</h3>
+                    <div class="paper-meta">
+                        <span class="meta-pill">${p.questions} question${p.questions !== 1 ? 's' : ''}</span>
+                    </div>
+                    ${p.matches && p.matches.length ? `
+                        <div class="match-list">
+                            ${p.matches.map(m => `
+                                <div class="match-item">
+                                    <span class="match-type ${esc(m.type)}">${esc(m.type)}</span>
+                                    <span>${esc(m.value)}</span>
+                                </div>`).join('')}
+                        </div>` : ''}
+                    <div class="paper-card-footer">
+                        ${p.owned
+                            ? `<span class="tag owned">In My Files</span>`
+                            : `<form method="POST" action="/add-to-my-files/${p.id}" onclick="event.stopPropagation();">
+                                   <button class="btn-card-add">+ Add</button>
+                               </form>`}
+                    </div>
+                </div>
+            </a>
+        </div>`).join('')}</div>`;
+}
+ 
+function renderQuestions(questions) {
+    return questions.map(q => `
+        <a href="/question/${q.id}" class="q-result-card">
+            <div class="q-result-body">
+                <p class="q-result-text">${esc(q.text)}</p>
+                <div class="q-result-meta">
+                    <span class="q-result-paper">${esc(formatFilename(q.paper_name))}</span>
+                    ${q.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+                </div>
+            </div>
+            <div class="q-result-right">
+                ${q.match_type ? `<span class="match-badge ${esc(q.match_type)}">${esc(q.match_type)}</span>` : ''}
+            </div>
+        </a>`).join('');
+}
+ 
 function fetchResults(query) {
     fetch(`/api/search?q=${encodeURIComponent(query)}`)
         .then(res => res.json())
         .then(data => {
-
-            results.innerHTML = "";
-
-            if (!data.results || data.results.length === 0) {
-                results.innerHTML = "<p>No results found.</p>";
-                return;
+            // Papers
+            document.getElementById("papers-section").querySelector(".papers-grid, .empty-state, div.papers-grid")?.remove();
+            const papersSection = document.getElementById("papers-section");
+            papersSection.insertAdjacentHTML("beforeend", renderPapers(data.papers || []));
+ 
+            // Questions
+            const qSection = document.getElementById("questions-section");
+            const qList = document.getElementById("questions-list");
+            const questions = data.questions || [];
+            if (questions.length && query.trim()) {
+                qSection.style.display = "block";
+                qList.innerHTML = renderQuestions(questions);
+            } else {
+                qSection.style.display = "none";
+                qList.innerHTML = "";
             }
-
-            let html = `<div class="papers-list">`;
-
-            data.results.forEach(paper => {
-                html += `
-                    <div class="paper-card-wrapper">
-
-                        <a href="/paper/${paper.id}" class="paper-card-link">
-
-                            <div class="paper-card">
-                                <div class="paper-info">
-                                    <h3>${formatFilename(paper.filename)}</h3>
-                                    <p><strong>Questions:</strong> ${paper.questions}</p>
-                                </div>
-                                ${
-                                    paper.owned
-                                    ? `<span class="tag owned">In My Files</span>`
-                                    : `
-                                        <form class="delete-form" method="POST" action="/add-to-my-files/${paper.id}">
-                                            <button class="card-btn delete-btn">Add</button>
-                                        </form>
-                                    `
-                                }
-
-                            </div>
-
-                        </a>
-
-                    </div>
-                `;
-            });
-
-            html += `</div>`;
-            results.innerHTML = html;
         })
-        .catch(err => {
-            console.error("Search error:", err);
-            results.innerHTML = "<p>Error loading results.</p>";
+        .catch(() => {
+            document.getElementById("papers-section").innerHTML =
+                `<div class="results-section-label">Papers</div><div class="empty-state">Error loading results.</div>`;
         });
 }
 </script>
-
 {% endblock %}
-

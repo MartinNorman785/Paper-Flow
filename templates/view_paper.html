@@ -1,154 +1,135 @@
 {% extends "base.html" %}
-
-{% block title %}PaperFlow View{% endblock %}
-
+ 
+{% block title %}{{ format_filename(paper.filename) }} — PaperFlow{% endblock %}
+ 
+{% block styles %}
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+{% endblock %}
+ 
 {% block content %}
-<div class="container">
-    <header style="display: flex; justify-content: space-between; align-items: center;">
-        <h1>Manage Paper</h1>
-        {% from "macros.html" import flash_messages %}
-
-        {{ flash_messages() }}
-        <a href="{{ url_for('index') }}"><button>Back to Past Papers</button></a>
-    </header>
-
-    <section class="paper-actions" style="margin: 20px 0; display: block; width: 100%;">
-        {% if edit_name and paper.owner_id == current_user.id %}
-            <form method="POST" action="{{ url_for('update_paper_name', paper_id=paper.id) }}"
-                style="display: flex; justify-content: space-between; align-items: center;">
-
-                <input type="text" name="filename" value="{{ format_filename(paper.filename) }}"
-                    required style="font-size: 1em; padding: 5px;">
-
-                <div style="display: flex; gap: 10px; padding-left: 20px;">
-                    <button type="submit" style="background-color: #4CAF50; color: white;">
-                        Save
-                    </button>
+{% from "macros.html" import flash_messages %}
+ 
+<div class="vp-page">
+     <div class="vp-flash">{{ flash_messages() }}</div>
+    <!-- Header -->
+    <div class="vp-header">
+        <div class="vp-header-left">
+            <a href="{{ url_for('index') }}" class="vp-back">← My Papers</a>
+            {% if edit_name and paper.owner_id == current_user.id %}
+                <form method="POST" action="{{ url_for('update_paper_name', paper_id=paper.id) }}"
+                      class="vp-name-form">
+                    <input type="text" name="filename" value="{{ format_filename(paper.filename) }}" required>
+                    <button class="hbtn-green" type="submit">Save</button>
                     <a href="{{ url_for('view_paper', paper_id=paper.id) }}">
-                        <button type="button" style="background-color: #cd4236;">Cancel</button>
+                        <button class="hbtn-red" type="button">Cancel</button>
                     </a>
-                </div>
-            </form>
-
-        {% else %}
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2 style="margin: 0;">
-                    {{ format_filename(paper.filename) }}
-                </h2>
-
-                {% if paper.owner_id == current_user.id %}
-                <div style="display: flex; gap: 10px;">
-                    <a href="{{ url_for('view_paper', paper_id=paper.id, edit_name=1) }}">
-                        <button>Change Name</button>
-                    </a>
-
-                    <form method="POST" action="{{ url_for('delete_paper', paper_id=paper.id) }}"
-                        onsubmit="return confirm('Are you sure you want to delete this entire paper?');">
-                        <button style="background-color: #cd4236;">Delete Paper</button>
-                    </form>
-
-                    <form method="POST" action="{{ url_for('process_paper', paper_id=paper.id) }}">
-                        <button type="submit" class="btn btn-primary">Process PDF into Questions</button>
-                    </form>
-                </div>
-                {% else %}
-                    {% if has_paper %}
-                    <div style="display: flex; gap: 10px;">
-                        <form method="POST" action="{{ url_for('remove_paper', paper_id=paper.id) }}"
-                            onsubmit="return confirm('Are you sure you want to remove this paper from your files?');">
-                            <button style="background-color: #cd4236;">Remove Paper from Files</button>
-                        </form>
-                    </div>
-                    {% else %}
-                    <div style="display: flex; gap: 10px;">
-                        <form action="{{ url_for('add_to_my_files', paper_id=paper.id) }}" method="POST">
-                            <button type="submit" class="card-btn delete-btn">Add</button>
-                        </form>
-                    </div>
-                    {% endif %}
-                {% endif %}
-            </div>
-        {% endif %}
-    </section>
-    <section style="margin: 20px 0; display: block; width: 100%;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <span style="font-size: 1.2em; font-weight: bold;">Preview</span>
-
-            <a href="{{ url_for('uploaded_file', filename=paper.filename) }}" download>
-                <button type="submit" class="btn btn-primary">
-                    Download PDF
-                </button>
-            </a>
-        </div>
-
-        <iframe 
-            src="{{ url_for('uploaded_file', filename=paper.filename) }}" 
-            width="100%" 
-            height="600px"
-            style="border: 1px solid #ccc; border-radius: 5px;">
-        </iframe>
-    </section>
-    <section>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h2 style="margin: 0;">Questions</h2>
-
-            {% if paper.owner_id == current_user.id %}
-            <div style="display: flex; gap: 10px;">
-
-                <a href="{{ url_for('split', paper_id=paper.id) }}">
-                    <button type="submit" class="btn btn-primary">
-                        Split into Questions
-                    </button>
-                </a>
-                <a href="{{ url_for('add_question', paper_id=paper.id) }}">
-                    <button type="submit" class="btn btn-primary">
-                        Add Question
-                    </button>
-                </a>
-
-                <form action="{{ url_for('delete_questions', paper_id=paper.id) }}" method="POST" style="margin:0;">
-                    <button type="submit" style="background-color: #cd4236;">
-                        Delete All Questions
-                    </button>
                 </form>
-            </div>
+            {% else %}
+                <h1 class="vp-title">{{ format_filename(paper.filename) }}</h1>
             {% endif %}
         </div>
-        {% if paper.questions %}
-            <div class="papers-list" style="display: flex; flex-direction: column; gap: 10px;">
-                {% for q in paper.questions %}
-                    <a href="{{ url_for('view_question', question_id=q.id) }}" class="paper-card-link">
-                        <div class="paper-card" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
-                            <div style="flex: 1;">
-                                {% set display_text = q.text[:100] + ('...' if q.text|length > 100 else '') %}
-                                <p style="margin: 0 0 5px 0;">{{ display_text }}</p>
-                                
-                                {% if q.tags %}
-                                    <p style="margin: 0;">
-                                        {% for tag in q.tags.split(',') %}
-                                            <span class="tag">{{ tag.strip() }}</span>
-                                        {% endfor %}
-                                    </p>
-                                {% endif %}
-                            </div>
+ 
+        <div class="vp-header-actions">
+            {% if paper.owner_id == current_user.id %}
+                <a href="{{ url_for('view_paper', paper_id=paper.id, edit_name=1) }}">
+                    <button class="hbtn-ghost">Rename</button>
+                </a>
+                <form method="POST" action="{{ url_for('process_paper', paper_id=paper.id) }}">
+                    <button class="hbtn-ghost" type="submit">Process PDF</button>
+                </form>
+                <form method="POST" action="{{ url_for('delete_paper', paper_id=paper.id) }}"
+                      onsubmit="return confirm('Delete this paper permanently?');">
+                    <button class="hbtn-red" type="submit">Delete</button>
+                </form>
+            {% else %}
+                {% if has_paper %}
+                    <form method="POST" action="{{ url_for('remove_paper', paper_id=paper.id) }}"
+                          onsubmit="return confirm('Remove from your files?');">
+                        <button class="hbtn-red" type="submit">Remove from Files</button>
+                    </form>
+                {% else %}
+                    <form action="{{ url_for('add_to_my_files', paper_id=paper.id) }}" method="POST">
+                        <button class="hbtn-ghost" type="submit">Add to My Files</button>
+                    </form>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
 
-                            {% if paper.owner_id == current_user.id %}
-                            <div style="margin-left: 10px;">
-                                <a href="{{ url_for('edit_question', question_id=q.id) }}">
-                                    <button>Edit Question</button>
-                                </a>
-                                <form action="{{ url_for('delete_question', question_id=q.id) }}" method="POST" style="display:inline;">
-                                    <button style="background-color: #cd4236;">Delete</button>
-                                </form>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </a>
-                {% endfor %}
+ 
+    <!-- Body -->
+    <div class="vp-body">
+ 
+        <!-- PDF -->
+        <div class="vp-pdf-panel">
+            <div class="vp-pdf-toolbar">
+                <span class="toolbar-label">Preview</span>
+                <a href="{{ url_for('uploaded_file', filename=paper.filename) }}" download>
+                    <button class="qbtn">Download</button>
+                </a>
             </div>
-        {% else %}
-            <p>No questions found for this paper yet.</p>
-        {% endif %}
-    </section>
+            <iframe src="{{ url_for('uploaded_file', filename=paper.filename) }}"></iframe>
+        </div>
+ 
+        <!-- Questions -->
+        <div class="vp-q-panel">
+ 
+            <div class="vp-q-header">
+                <div class="vp-q-header-top">
+                    <h2>Questions</h2>
+                    <span class="q-count-badge">{{ paper.questions|length }} total</span>
+                </div>
+ 
+                {% if paper.owner_id == current_user.id %}
+                <div class="vp-q-btns">
+                    <button class="qbtn" type="button"
+                            onclick="window.location='{{ url_for('split', paper_id=paper.id) }}'">Split PDF</button>
+                    <button class="qbtn" type="button"
+                            onclick="window.location='{{ url_for('add_question', paper_id=paper.id) }}'">Add Questions</button>
+                    {% if paper.questions %}
+                    <button class="qbtn-red" type="submit"
+                        onclick="if(confirm('Delete all questions?')) window.location='{{ url_for('delete_questions', paper_id=paper.id) }}">Delete All</button>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+ 
+            <div class="vp-q-list">
+                {% if paper.questions %}
+                    {% for q in paper.questions %}
+                    <a href="{{ url_for('view_question', question_id=q.id) }}" class="q-row">
+                        <span class="q-num">{{ loop.index }}</span>
+                        <span class="q-text">{{ q.text }}</span>
+                        {% if q.tags %}
+                        <div class="q-tags">
+                            {% for tag in q.tags.split(',') %}
+                                <span class="q-tag">{{ tag.strip() }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% if paper.owner_id == current_user.id %}
+                        <div class="q-row-actions" onclick="event.preventDefault();">
+                            <a href="{{ url_for('edit_question', question_id=q.id) }}">
+                                <button class="qa-edit">Edit</button>
+                            </a>
+                            <form action="{{ url_for('delete_question', question_id=q.id) }}" method="POST"
+                                  onsubmit="return confirm('Delete this question?');">
+                                <button class="qa-del" type="submit">Delete</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="q-empty">
+                        <div class="q-empty-icon">📋</div>
+                        <p>No questions yet.<br>Split the PDF or add one manually.</p>
+                    </div>
+                {% endif %}
+            </div>
+ 
+        </div>
+    </div>
+ 
 </div>
 {% endblock %}

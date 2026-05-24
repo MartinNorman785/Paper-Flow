@@ -3,44 +3,62 @@
 {% block title %}PaperFlow Home{% endblock %}
 
 {% block content %}
-<header>
-    <h1>Past Papers</h1>
-    {% from "macros.html" import flash_messages %}
-
+{% from "macros.html" import flash_messages %}
+ 
+<div class="index-layout">
+ 
+    <div class="index-topbar">
+        <div class="index-topbar-left">
+            <h1>My Papers</h1>
+            <p>Manage your uploaded past papers and questions.</p>
+        </div>
+        <a href="{{ url_for('upload') }}"><button>+ Upload Paper</button></a>
+    </div>
+ 
     {{ flash_messages() }}
-    <p>Manage your uploaded past papers and questions easily.</p>
-    <a href="{{ url_for('upload') }}"><button>Upload New Paper</button></a>
-</header>
-
-<section>
-    {% if papers %}
-        <div class="papers-list">
+ 
+    <div class="papers-grid">
+        {% if papers %}
             {% for paper in papers %}
-                <div class="paper-card-wrapper">
+            <div class="paper-card-wrapper">
+                <div class="paper-card">
+ 
                     <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="paper-card-link">
-                        <div class="paper-card">
-                            <div class="paper-info">
-                                <h3>{{ format_filename(paper.filename) }}</h3>
-                                <p><strong>Questions:</strong> {{ paper.questions|length }}</p>
+                        <div class="paper-card-body">
+                            <h3>{{ format_filename(paper.filename) }}</h3>
+                            <div class="paper-meta">
+                                <span class="meta-pill">{{ paper.questions|length }} question{{ 's' if paper.questions|length != 1 }}</span>
+                                {% if paper.owner_id == current_user.id %}
+                                    <span class="meta-pill">Owner</span>
+                                {% endif %}
                             </div>
-                            {% if paper.owner_id == current_user.id %}
-                                <form class="delete-form" action="{{ url_for('delete_paper', paper_id=paper.id) }}" method="POST"
-                                    onsubmit="return confirm('Are you sure you want to delete this past paper?');">
-                                    <button type="submit" class="card-btn delete-btn">Delete</button>
-                                </form>
-                            {% else %}
-                                <form class="delete-form" action="{{ url_for('remove_paper', paper_id=paper.id) }}" method="POST"
-                                    onsubmit="return confirm('Are you sure you want to remove this past paper from your papers?');">
-                                    <button type="submit" class="card-btn delete-btn">Remove</button>
-                                </form>
-                            {% endif %}
                         </div>
                     </a>
+ 
+                    <div class="paper-card-footer">
+                        {% if paper.owner_id == current_user.id %}
+                            <form action="{{ url_for('delete_paper', paper_id=paper.id) }}" method="POST"
+                                  onsubmit="return confirm('Delete this paper permanently?');">
+                                <button type="submit" class="btn-card-delete">Delete</button>
+                            </form>
+                        {% else %}
+                            <form action="{{ url_for('remove_paper', paper_id=paper.id) }}" method="POST"
+                                  onsubmit="return confirm('Remove this paper from your files?');">
+                                <button type="submit" class="btn-card-delete">Remove</button>
+                            </form>
+                        {% endif %}
+                    </div>
+ 
                 </div>
+            </div>
             {% endfor %}
-        </div>
-    {% else %}
-        <p>No past papers uploaded yet. Use the button above to upload one.</p>
-    {% endif %}
-</section>
+        {% else %}
+            <div class="empty-state">
+                <p>No past papers yet.</p>
+                <a href="{{ url_for('upload') }}"><button>Upload your first paper</button></a>
+            </div>
+        {% endif %}
+    </div>
+ 
+</div>
 {% endblock %}

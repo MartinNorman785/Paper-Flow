@@ -1,125 +1,110 @@
 {% extends "base.html" %}
 
-{% block title %}PaperFlow Upload{% endblock %}
+{% block title %}Upload Past Paper — PaperFlow{% endblock %}
 
 {% block content %}
-
 {% from "macros.html" import flash_messages %}
 
-<div class="upload-page">
-    <header>
-        <h1>Upload Past Paper</h1>
-        {{ flash_messages() }}
-        <p>Select a PDF to upload or drag & drop the file below.</p>
-    </header>
+<div class="aq-layout">
 
-    {% if message %}
-        <div class="message">{{ message }}</div>
-    {% endif %}
+    <!-- Left: form -->
+    <div class="aq-form-panel">
 
-    <section>
-        <form method="POST" enctype="multipart/form-data" id="upload-form">
-            <!-- Upload box -->
-            <div class="upload-box" id="upload-box">
-                <p id="upload-text">Drag & Drop PDF here or click to select</p>
-                <input type="file" name="file" id="file-input" accept=".pdf" hidden>
-            </div>
+        <div class="aq-panel-header">
+            <a href="{{ url_for('index') }}" class="back-link">
+                ← Back to home
+            </a>
+            <h2>Upload Past Paper</h2>
+        </div>
 
-            {% if uploaded_paper %}
-                <div style="margin-top: 20px;">
-                    <h3>Preview</h3>
-                    <p><strong>{{ uploaded_paper.filename }}</strong></p>
-                    <iframe 
-                        src="{{ url_for('uploaded_file', filename=uploaded_paper.filename) }}"
-                        width="100%" 
-                        height="600px"
-                        style="border: 1px solid #ccc; border-radius: 5px;">
-                    </iframe>
+        <div class="aq-panel-body">
 
-                    <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
-                        
-                        <a href="{{ url_for('uploaded_file', filename=uploaded_paper.filename) }}" 
-                        download
-                        class="btn-primary">
-                            Download PDF
-                        </a>
+            {{ flash_messages() }}
 
-                        <a href="{{ url_for('view_paper', paper_id=uploaded_paper.id) }}" 
-                        class="btn-primary">
-                            Open in Manager
-                        </a>
-
-                    </div>
-                </div>
+            {% if message %}
+                <div class="flash-message flash-danger">{{ message }}</div>
             {% endif %}
-            <div id="preview-container" style="margin-top: 20px; display: none;">
-                <h3>Preview</h3>
-                <iframe id="pdf-preview" width="100%" height="600px"
-                    style="border: 1px solid #ccc; border-radius: 5px;">
-                </iframe>
-            </div>
-            <div class="file-submit" style="display: flex; justify-content: center; margin-top: 15px;">
-                <button type="submit">Upload</button>
-            </div>
-        </form>
-    </section>
+
+            <form method="POST" enctype="multipart/form-data" id="upload-form" style="display:contents;">
+
+                <div class="upload-zone" id="upload-box"
+                     onclick="document.getElementById('file-input').click()">
+                    <div class="upload-icon">📄</div>
+                    <p>Drag &amp; drop a PDF or click to select</p>
+                    <p class="file-name" id="file-name-display" style="display:none;"></p>
+                    <input type="file" name="file" id="file-input" accept=".pdf" hidden>
+                </div>
+
+                <div class="aq-actions">
+                    <button type="submit" class="btn-primary">
+                        Upload
+                    </button>
+                    <a href="{{ url_for('index') }}"
+                       
+                       onclick="return confirm('Discard and go back?')">
+                       <button style="background-color:#cd4236;">Cancel</button>
+                    </a>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <!-- Right: preview -->
+    <div class="aq-preview-panel">
+        <div class="preview-placeholder" id="preview-placeholder">
+            <p>PDF preview will appear here</p>
+        </div>
+        <iframe id="pdf-preview"></iframe>
+
+        {% if uploaded_paper %}
+        <script>
+            document.getElementById("preview-placeholder").style.display = "none";
+            document.getElementById("pdf-preview").style.display = "block";
+            document.getElementById("pdf-preview").src = "{{ url_for('uploaded_file', filename=uploaded_paper.filename) }}";
+        </script>
+        {% endif %}
+    </div>
+
 </div>
 
 <script>
-const uploadBox = document.getElementById('upload-box');
-const fileInput = document.getElementById('file-input');
-const uploadText = document.getElementById('upload-text');
+const fileInput = document.getElementById("file-input");
+const uploadBox = document.getElementById("upload-box");
+const fileNameDisplay = document.getElementById("file-name-display");
+const pdfPreview = document.getElementById("pdf-preview");
+const previewPlaceholder = document.getElementById("preview-placeholder");
 
-// Click to open file selector
-uploadBox.addEventListener('click', () => fileInput.click());
-
-// Drag & Drop events
-uploadBox.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    uploadBox.classList.add('dragover');
+fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    fileNameDisplay.textContent = file.name;
+    fileNameDisplay.style.display = "block";
+    pdfPreview.src = URL.createObjectURL(file);
+    pdfPreview.style.display = "block";
+    previewPlaceholder.style.display = "none";
 });
 
-uploadBox.addEventListener('dragleave', () => {
-    uploadBox.classList.remove('dragover');
+uploadBox.addEventListener("dragover", e => {
+    e.preventDefault();
+    uploadBox.classList.add("drag-over");
 });
 
-uploadBox.addEventListener('drop', (e) => {
+uploadBox.addEventListener("dragleave", () => {
+    uploadBox.classList.remove("drag-over");
+});
+
+uploadBox.addEventListener("drop", e => {
     e.preventDefault();
-    uploadBox.classList.remove('dragover');
-    if (e.dataTransfer.files.length) {
-        fileInput.files = e.dataTransfer.files;
-        uploadText.textContent = `Selected file: ${fileInput.files[0].name}`;
-    }
+    uploadBox.classList.remove("drag-over");
     const file = e.dataTransfer.files[0];
-    
-    fileInput.files = e.dataTransfer.files;
-    uploadText.textContent = `Selected file: ${file.name}`;
-
-    const previewContainer = document.getElementById('preview-container');
-    const previewFrame = document.getElementById('pdf-preview');
-
-    const fileURL = URL.createObjectURL(file);
-    previewFrame.src = fileURL;
-
-    previewContainer.style.display = 'block';
-});
-
-fileInput.addEventListener('change', () => {
-    if (fileInput.files.length) {
-        const file = fileInput.files[0];
-
-        uploadText.textContent = `Selected file: ${file.name}`;
-
-        // Show preview
-        const previewContainer = document.getElementById('preview-container');
-        const previewFrame = document.getElementById('pdf-preview');
-
-        const fileURL = URL.createObjectURL(file);
-        previewFrame.src = fileURL;
-
-        previewContainer.style.display = 'block';
+    if (file && file.type === "application/pdf") {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        fileInput.dispatchEvent(new Event("change"));
     }
 });
 </script>
-
 {% endblock %}

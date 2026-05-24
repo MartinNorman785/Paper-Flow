@@ -1,35 +1,61 @@
 {% extends "base.html" %}
-
-{% block title %}PaperFlow View{% endblock %}
-
+ 
+{% block title %}Edit Question — PaperFlow{% endblock %}
+ 
 {% block content %}
-<header>
-<body>
-    <div class="container">
-        <header>
-            <h1>Edit Question</h1>
-        </header>
-
-        <section>
-            <form method="post">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <label for="text"><strong>Question Text:</strong></label>
-                    <textarea id="text" name="text" style="width: 84.5%">{{ question.text }}</textarea>
+<div class="aq-layout">
+ 
+    <!-- Left: form -->
+    <div class="aq-form-panel">
+ 
+        <div class="aq-panel-header">
+            <a href="{{ url_for('view_question', question_id=question.id) }}" class="back-link">
+                ← Back to question
+            </a>
+            <h2>Edit Question</h2>
+        </div>
+ 
+        <div class="aq-panel-body">
+ 
+            <form action="{{ url_for('edit_question', question_id=question.id) }}" method="POST" style="display:contents;">
+ 
+                <div class="form-section">
+                    <label for="question_text">Question text</label>
+                    <textarea name="question_text" id="question_text" rows="8">{{ question.text }}</textarea>
                 </div>
-
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <label style="width: 10%" for="tags"><strong>Tags (Comma Separated):</strong></label>
-                    <input style="width: 84.5%" type="text" id="tags" name="tags" value="{{ question.tags }}" placeholder="e.g. algebra, integration, probability">
+ 
+                <div class="form-section">
+                    <label for="tags">Tags <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#adb5bd;">(comma separated)</span></label>
+                    <input type="text" name="tags" id="tags"
+                           value="{{ question.tags or '' }}"
+                           placeholder="e.g. algebra, integration, probability">
                 </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <button type="submit" >Save Changes</button>
-                    <a href="{{ url_for('view_question', question_id=question.id) }}">
-                        <button>Back to Question</button>
+ 
+                <div class="aq-actions">
+                    <button type="submit">Save Changes</button>
+                    <a href="{{ url_for('view_question', question_id=question.id) }}"
+                       
+                       onclick="return confirm('Discard changes?')">
+                       <button style="background-color:#cd4236;">Cancel</button>
                     </a>
                 </div>
+ 
             </form>
-        </section>
+ 
+        </div>
     </div>
-</body>
-</html>
+ 
+    <!-- Right: PDF preview if available -->
+    <div class="aq-preview-panel">
+        {% if question.filename %}
+            <iframe src="{{ url_for('uploaded_question', filename=question.filename) }}"
+                    style="flex:1; width:100%; border:none; display:block;"></iframe>
+        {% else %}
+            <div class="preview-placeholder">
+                <p>No PDF attached to this question</p>
+            </div>
+        {% endif %}
+    </div>
+ 
+</div>
 {% endblock %}

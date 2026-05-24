@@ -1,69 +1,133 @@
 {% extends "base.html" %}
 
-{% block title %}PaperFlow Add Question{% endblock %}
+{% block title %}Add Question — PaperFlow{% endblock %}
+
 
 {% block content %}
-<section style="margin: 20px;">
-    <h2>Add Question for "{{ format_filename(paper.filename) }}"</h2>
-    <form method="POST" enctype="multipart/form-data" id="upload-form"></form>
-    <form action="{{ url_for('add_question', paper_id=paper.id) }}" method="POST" style="display: flex; flex-direction: column; gap: 10px; max-width: 600px;">
-        <label for="question_text">Question Text:</label>
-        <textarea name="question_text" id="question_text" rows="5" required placeholder="Enter the question here..." style="padding:5px;"></textarea>
+<div class="aq-layout">
 
-        <label for="question_name">Optional Question Name:</label>
-        <input type="text" name="question_name" id="question_name" placeholder="Leave blank to use question text as name" style="padding:5px;">
+    <!-- Left: form -->
+    <div class="aq-form-panel">
 
-        <button type="submit" style="padding:8px 12px; background:#007bff; color:white; border:none; border-radius:3px; width:120px;">
-            Add Question
-        </button>
-    </form>
+        <div class="aq-panel-header">
+            <a href="{{ url_for('view_paper', paper_id=paper.id) }}" class="back-link">
+                ← Back to paper
+            </a>
+            <h2>Add Question — {{ format_filename(paper.filename) }}</h2>
+        </div>
 
-    <div style="margin-top: 10px;">
-        <a href="{{ url_for('view_paper', paper_id=paper.id) }}">← Back to Paper</a>
+        <div class="aq-panel-body">
+
+            <!-- Text question form -->
+            <form action="{{ url_for('add_question', paper_id=paper.id) }}" method="POST"
+                  style="display:contents;">
+
+                <div class="form-section">
+                    <label for="question_text">Question text</label>
+                    <textarea name="question_text" id="question_text" rows="6"
+                              placeholder="Enter the question here..." required></textarea>
+                </div>
+
+                <div class="form-section">
+                    <label for="question_name">Question name <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#adb5bd;">(optional)</span></label>
+                    <input type="text" name="question_name" id="question_name"
+                           placeholder="Leave blank to use question text">
+                </div>
+
+                <div class="aq-actions">
+                    <button type="submit" class="btn-primary">
+                        Add Question
+                    </button>
+                </div>
+
+            </form>
+
+            <div class="aq-divider">or upload a PDF</div>
+
+            <!-- PDF upload form -->
+            <form action="{{ url_for('add_question', paper_id=paper.id) }}" method="POST"
+                  enctype="multipart/form-data" id="upload-form" style="display:contents;">
+
+                <div class="upload-zone" id="upload-box"
+                     onclick="document.getElementById('file-input').click()">
+                    <div class="upload-icon">📄</div>
+                    <p>Drag &amp; drop a PDF or click to select</p>
+                    <p class="file-name" id="file-name-display" style="display:none;"></p>
+                    <input type="file" name="file" id="file-input" accept=".pdf" hidden>
+                </div>
+
+                <div class="aq-actions">
+                    <button type="submit" class="btn-primary">
+                        Upload PDF
+                    </button>
+                    <a href="{{ url_for('view_paper', paper_id=paper.id) }}"
+                       style="background-color:#cd4236;"
+                       onclick="return confirm('Discard and go back?')">
+                        Cancel
+                    </a>
+                </div>
+
+            </form>
+
+        </div>
     </div>
 
-        <!-- Upload box -->
-        <div class="upload-box" id="upload-box">
-            <p id="upload-text">Drag & Drop PDF here or click to select</p>
-            <input type="file" name="file" id="file-input" accept=".pdf" hidden>
+    <!-- Right: preview -->
+    <div class="aq-preview-panel">
+        <div class="preview-placeholder" id="preview-placeholder">
+            <div class="icon">🗂️</div>
+            <p>PDF preview will appear here</p>
         </div>
+        <iframe id="pdf-preview"></iframe>
 
         {% if uploaded_paper %}
-            <div style="margin-top: 20px;">
-                <h3>Preview</h3>
-                <p><strong>{{ uploaded_paper.filename }}</strong></p>
-                <iframe 
-                    src="{{ url_for('uploaded_file', filename=uploaded_paper.filename) }}"
-                    width="100%" 
-                    height="600px"
-                    style="border: 1px solid #ccc; border-radius: 5px;">
-                </iframe>
-
-                <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
-                    
-                    <a href="{{ url_for('uploaded_file', filename=uploaded_paper.filename) }}" 
-                    download
-                    class="btn-primary">
-                        Download PDF
-                    </a>
-
-                    <a href="{{ url_for('view_paper', paper_id=uploaded_paper.id) }}" 
-                    class="btn-primary">
-                        Open in Manager
-                    </a>
-
-                </div>
-            </div>
+        <script>
+            document.getElementById("preview-placeholder").style.display = "none";
+            document.getElementById("pdf-preview").style.display = "block";
+            document.getElementById("pdf-preview").src = "{{ url_for('uploaded_file', filename=uploaded_paper.filename) }}";
+        </script>
         {% endif %}
-        <div id="preview-container" style="margin-top: 20px; display: none;">
-            <h3>Preview</h3>
-            <iframe id="pdf-preview" width="100%" height="600px"
-                style="border: 1px solid #ccc; border-radius: 5px;">
-            </iframe>
-        </div>
-        <div class="file-submit" style="display: flex; justify-content: center; margin-top: 15px;">
-            <button type="submit">Upload</button>
-        </div>
-    </form>
-</section>
+    </div>
+
+</div>
+
+<script>
+const fileInput = document.getElementById("file-input");
+const uploadBox = document.getElementById("upload-box");
+const fileNameDisplay = document.getElementById("file-name-display");
+const pdfPreview = document.getElementById("pdf-preview");
+const previewPlaceholder = document.getElementById("preview-placeholder");
+
+fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    fileNameDisplay.textContent = file.name;
+    fileNameDisplay.style.display = "block";
+    const url = URL.createObjectURL(file);
+    pdfPreview.src = url;
+    pdfPreview.style.display = "block";
+    previewPlaceholder.style.display = "none";
+});
+
+uploadBox.addEventListener("dragover", e => {
+    e.preventDefault();
+    uploadBox.classList.add("drag-over");
+});
+
+uploadBox.addEventListener("dragleave", () => {
+    uploadBox.classList.remove("drag-over");
+});
+
+uploadBox.addEventListener("drop", e => {
+    e.preventDefault();
+    uploadBox.classList.remove("drag-over");
+    const file = e.dataTransfer.files[0];
+    if (file && file.type === "application/pdf") {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        fileInput.dispatchEvent(new Event("change"));
+    }
+});
+</script>
 {% endblock %}

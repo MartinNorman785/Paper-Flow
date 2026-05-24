@@ -18,12 +18,14 @@ from split import crop_question
 from extensions import db
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///papers.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+    'DATABASE_URL', 'sqlite:///papers.db'
+).replace('postgres://', 'postgresql://')
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get('SECRET_KEY', db479c933cb9108665c3134693b03c96)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -89,7 +91,7 @@ def logout():
 def index():
     links = UserPaper.query.filter_by(user_id=current_user.id).all()
 
-    papers = [PastPaper.query.get(link.paper_id) for link in links]
+    papers = [p for link in links if (p := PastPaper.query.get(link.paper_id)) is not None]
     return render_template('index.html', papers=papers)
 
 
@@ -257,27 +259,105 @@ def explore():
 @app.route('/api/search')
 @login_required
 def api_search():
-    q = request.args.get('q', '').strip()
-
-    query = PastPaper.query
-
-    if q:
-        query = query.filter(
-            func.lower(PastPaper.filename).contains(q) |
-            func.replace(func.replace(func.lower(PastPaper.filename), "_", " "), "-", " ").contains(q)
-        )
-
-    results = query.order_by(PastPaper.id.desc()).limit(30).all()
-
+    q = request.args.get('q', '').strip().lower()
+ 
     user_papers = {
         up.paper_id for up in UserPaper.query.filter_by(user_id=current_user.id).all()
     }
-
+ 
+    if not q:
+        papers = PastPaper.query.order_by(PastPaper.id.desc()).limit(30).all()
+        return {
+            "papers": [
+                {
+                    "id": p.id,
+                    "filename": p.filename,
+                    "questions": len(p.questions),
+                    "owned": p.id in user_papers,
+                    "matches": []
+                } for p in papers
+            ],
+            "questions": []
+        }
+ 
+    # ── Paper matches (by filename) ───────────────────────────────────────
+    filename_matches = PastPaper.query.filter(
+        func.lower(PastPaper.filename).contains(q) |
+        func.replace(func.replace(func.lower(PastPaper.filename), "_", " "), "-", " ").contains(q)
+    ).all()
+ 
+    paper_results_map = {}
+    for paper in filename_matches:
+        paper_results_map[paper.id] = {"paper": paper, "matches": []}
+ 
+    # ── Question matches (by text or tags) ────────────────────────────────
+    question_matches = Question.query.filter(
+        func.lower(Question.text).contains(q) |
+        func.lower(func.coalesce(Question.tags, '')).contains(q)
+    ).all()
+ 
+    question_results = []
+ 
+    for question in question_matches:
+        paper = PastPaper.query.get(question.paper_id)
+        if not paper:
+            continue
+ 
+        # Also bubble the paper up into paper results
+        if paper.id not in paper_results_map:
+            paper_results_map[paper.id] = {"paper": paper, "matches": []}
+ 
+        match_type = None
+        match_value = None
+ 
+        if question.tags and q in question.tags.lower():
+            for tag in question.tags.split(','):
+                if q in tag.strip().lower():
+                    match_type = "tag"
+                    match_value = tag.strip()
+                    paper_results_map[paper.id]["matches"].append({"type": "tag", "value": tag.strip()})
+                    break
+ 
+        if q in question.text.lower():
+            idx = question.text.lower().index(q)
+            start = max(0, idx - 30)
+            end = min(len(question.text), idx + 30 + len(q))
+            snippet = ("…" if start > 0 else "") + question.text[start:end] + ("…" if end < len(question.text) else "")
+            if not match_type:
+                match_type = "question"
+                match_value = snippet
+            paper_results_map[paper.id]["matches"].append({"type": "question", "value": snippet})
+ 
+        question_results.append({
+            "id": question.id,
+            "text": question.text,
+            "tags": [t.strip() for t in question.tags.split(',')] if question.tags else [],
+            "paper_id": paper.id,
+            "paper_name": paper.filename,
+            "has_pdf": bool(question.filename),
+            "match_type": match_type,
+            "match_value": match_value,
+        })
+ 
+    # Sort papers: filename matches first, then by id desc
+    sorted_papers = sorted(
+        paper_results_map.values(),
+        key=lambda r: (r["paper"].id not in {p.id for p in filename_matches}, -r["paper"].id)
+    )[:30]
+ 
     return {
-        "results": [
-            {"id": p.id, "filename": p.filename,
-                "questions": len(p.questions), "owned": p.id in user_papers
-            } for p in results]}
+        "papers": [
+            {
+                "id": r["paper"].id,
+                "filename": r["paper"].filename,
+                "questions": len(r["paper"].questions),
+                "owned": r["paper"].id in user_papers,
+                "matches": r["matches"][:3]
+            }
+            for r in sorted_papers
+        ],
+        "questions": question_results[:30]
+    }
 
 @app.route('/add-to-my-files/<int:paper_id>', methods=['POST'])
 @login_required
@@ -322,15 +402,13 @@ def edit_question(question_id):
     paper = PastPaper.query.get_or_404(question.paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
-    
-
+ 
     if request.method == 'POST':
-
-
-        question.text = request.form['text']
-        question.tags = request.form['tags']
+        question.text = request.form.get('question_text', '').strip() or question.text
+        question.tags = request.form.get('tags', '').strip()
         db.session.commit()
         return redirect(url_for('view_question', question_id=question.id))
+ 
     return render_template('edit_question.html', question=question)
 
 @app.route('/delete/<int:paper_id>', methods=['POST'])
@@ -340,6 +418,7 @@ def delete_paper(paper_id):
     if paper.owner_id != current_user.id:
         abort(403)
     file = PaperFile.query.get_or_404(paper.filename)
+    UserPaper.query.filter_by(paper_id=paper_id).delete()
 
     # Delete the database record
     db.session.delete(paper)
@@ -410,6 +489,13 @@ def uploaded_file(filename):
     paper = PaperFile.query.filter_by(filename=filename).first_or_404()
     return send_file(BytesIO(paper.data), mimetype='application/pdf')
 
+@app.route('/upload_questions/<path:filename>')
+@login_required
+def uploaded_question(filename):
+    question = QuestionFile.query.filter_by(filename=filename).first_or_404()
+    print(question)
+    return send_file(BytesIO(question.data), mimetype='application/pdf')
+
 @app.route('/process/<int:paper_id>', methods=['POST'])
 @login_required
 def process_paper(paper_id):
@@ -469,29 +555,40 @@ def add_question(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
         abort(403)
-
+ 
     if request.method == 'POST':
+        uploaded_file = request.files.get('file')
         question_text = request.form.get('question_text', '').strip()
-        question_name = request.form.get('question_name', '').strip()
-
+ 
+        if uploaded_file and uploaded_file.filename.endswith('.pdf'):
+            # PDF upload — use filename as placeholder text if none provided
+            if not question_text:
+                question_text = os.path.splitext(
+                    secure_filename(uploaded_file.filename)
+                )[0].replace('_', ' ').replace('-', ' ')
+ 
+            filename = f"{uuid.uuid4().hex}.pdf"
+            qfile = QuestionFile(filename=filename, data=uploaded_file.read())
+            question = Question(text=question_text, paper_id=paper.id, filename=filename)
+ 
+            db.session.add(qfile)
+            db.session.add(question)
+            db.session.commit()
+ 
+            flash("Question added successfully!", "success")
+            return redirect(url_for('view_paper', paper_id=paper_id))
+ 
+        # Text-only question
         if not question_text:
             flash("Question text cannot be empty.", "error")
             return redirect(url_for('add_question', paper_id=paper_id))
-
-        # Use text as name if no name provided
-        if not question_name:
-            question_name = question_text[:30] + "..." if len(question_text) > 30 else question_text
-
-        new_question = Question(
-            text=question_text,
-            paper_id=paper.id
-        )
-        db.session.add(new_question)
+ 
+        db.session.add(Question(text=question_text, paper_id=paper.id))
         db.session.commit()
-
+ 
         flash("Question added successfully!", "success")
         return redirect(url_for('view_paper', paper_id=paper_id))
-
+ 
     return render_template('add_question.html', paper=paper)
 
 @app.route('/delete_question/<int:question_id>', methods=['POST'])
