@@ -1,5 +1,4 @@
-from pypdf import PdfReader, PdfWriter
-from pypdf.generic import RectangleObject
+import fitz
 from io import BytesIO
 import os
 
@@ -9,41 +8,24 @@ def convert_to_pdf_coords(y_norm, page_height):
 def crop_question(input_path, page_num, y_top, y_bottom):
     """
     Crops a single question from a PDF page using normalized coordinates (0-1).
-    Converts Decimal inputs to float to avoid TypeErrors.
+    Returns bytes of the cropped single-page PDF.
     """
-
-    # Ensure normalized coordinates are floats
-    y_top = float(y_top)
+    y_top    = float(y_top)
     y_bottom = float(y_bottom)
 
-    reader = PdfReader(input_path)
-    writer = PdfWriter()
+    src_doc  = fitz.open(input_path)
+    src_page = src_doc[page_num]
+    page_h   = src_page.rect.height
+    page_w   = src_page.rect.width
 
-    page = reader.pages[page_num]
-    mediabox = page.mediabox
-    left, right, top, bottom = (
-        float(mediabox.left),
-        float(mediabox.right),
-        float(mediabox.top),
-        float(mediabox.bottom)
-    )
+    clip = fitz.Rect(0, y_top * page_h, page_w, y_bottom * page_h)
 
-    # Convert normalized coordinates (0-1) to PDF coordinates
-    crop_top = top - (y_top * (top - bottom))
-    crop_bottom = top - (y_bottom * (top - bottom))
+    out_doc = fitz.open()
+    out_doc.insert_pdf(src_doc, from_page=page_num, to_page=page_num)
+    out_doc[-1].set_cropbox(clip)
 
-    # Ensure bottom < top
-    if crop_bottom > crop_top:
-        crop_bottom, crop_top = crop_top, crop_bottom
+    pdf_bytes = out_doc.tobytes()
+    out_doc.close()
+    src_doc.close()
 
-    print((left, crop_bottom, right, crop_top))
-
-    # Set crop box
-    page.cropbox = RectangleObject((left, crop_bottom, right, crop_top))
-
-    writer.add_page(page)
-
-    output = BytesIO()
-    writer.write(output)
-    output.seek(0)
-    return output.read()
+    return pdf_bytes

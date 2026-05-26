@@ -158,6 +158,8 @@ def split(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     return render_template('split.html', paper=paper)
 
+import fitz
+
 @app.route('/paper/<int:paper_id>/save_splits', methods=['POST'])
 @login_required
 def save_splits(paper_id):
@@ -170,59 +172,58 @@ def save_splits(paper_id):
     questions_data = data.get('questions', [])
     auto_extract = data.get('auto_extract', False)
 
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-        tmp.write(paper_file.data)
-        tmp_path = tmp.name
-
-    # Free the paper file data from memory immediately after writing to disk
-    del paper_file
+    # Open source PDF once with fitz, keep in memory
+    src_doc = fitz.open(stream=paper_file.data, filetype="pdf")
+    del paper_file  # free DB object
 
     try:
         for i, q in enumerate(questions_data):
-            writer = PdfWriter()
-            reader = PdfReader(tmp_path)  # read fresh each time, don't hold in memory
+            out_doc = fitz.open()  # new empty PDF
 
             for page_num in range(q["start_page"], q["end_page"] + 1):
+                src_page = src_doc[page_num]
+                page_h = src_page.rect.height
+
                 if q["start_page"] == q["end_page"]:
-                    y_top, y_bottom = q["start_y"], q["end_y"]
+                    y_top    = q["start_y"] * page_h
+                    y_bottom = q["end_y"]   * page_h
                 elif page_num == q["start_page"]:
-                    y_top, y_bottom = q["start_y"], 1.0
+                    y_top, y_bottom = q["start_y"] * page_h, page_h
                 elif page_num == q["end_page"]:
-                    y_top, y_bottom = 0.0, q["end_y"]
+                    y_top, y_bottom = 0, q["end_y"] * page_h
                 else:
-                    y_top, y_bottom = 0.0, 1.0
+                    y_top, y_bottom = 0, page_h
 
-                cropped_bytes = crop_question(tmp_path, page_num, y_top, y_bottom)
-                writer.add_page(PdfReader(BytesIO(cropped_bytes)).pages[0])
-                del cropped_bytes  # free immediately
+                clip = fitz.Rect(0, y_top, src_page.rect.width, y_bottom)
 
-            output = BytesIO()
-            writer.write(output)
-            pdf_bytes = output.getvalue()
-            del writer, output  # free immediately
+                out_doc.insert_pdf(src_doc, from_page=page_num, to_page=page_num)
+                out_page = out_doc[-1]
+                out_page.set_cropbox(clip)
 
             extracted_text = f"Question {i + 1}"
             if auto_extract:
                 try:
-                    import fitz
-                    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-                    text = "\n".join(page.get_text() for page in doc).strip()
-                    doc.close()
+                    text = "\n".join(p.get_text() for p in out_doc).strip()
                     if text:
                         extracted_text = text
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(e)
+
+            pdf_bytes = out_doc.tobytes()
+            out_doc.close()
 
             filename = f"{uuid.uuid4().hex}.pdf"
             db.session.add(QuestionFile(filename=filename, data=pdf_bytes))
-            db.session.add(Question(text=extracted_text, paper_id=paper.id, filename=filename))
-            del pdf_bytes  # free immediately
-
-            # Commit each question individually to avoid one giant transaction
+            db.session.add(Question(
+                text=extracted_text,
+                paper_id=paper.id,
+                filename=filename
+            ))
             db.session.commit()
+            del pdf_bytes
 
     finally:
-        os.unlink(tmp_path)
+        src_doc.close()
 
     return {"success": True, "redirect": url_for('view_paper', paper_id=paper.id)}
 
