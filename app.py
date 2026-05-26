@@ -906,7 +906,6 @@ def llm_process_all(paper_id):
             results.update(process_questions_bulk_with_llm(batch))
     except Exception as e:
         flash(f'LLM processing failed: {e}', 'error')
-        print(result)
         return redirect(url_for('view_paper', paper_id=paper_id))
 
     updated, failed = 0, 0
