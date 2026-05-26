@@ -29,15 +29,20 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
     'DATABASE_URL', 'sqlite:///papers.db'
 ).replace('postgres://', 'postgresql://')
 
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 280,         
+    'pool_timeout': 20,
+    'pool_size': 5,
+    'max_overflow': 2,
+}
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 os.environ.get('GROQ_API_KEY')
 
 with app.app_context():
-    with db.engine.connect() as conn:
-        conn.execute(db.text('DROP TABLE IF EXISTS user_paper CASCADE'))
-        conn.commit()
     db.create_all()
 
 app.secret_key = os.environ.get('SECRET_KEY', 'db479c933cb9108665c3134693b03c96')
@@ -156,59 +161,69 @@ def split(paper_id):
 @app.route('/paper/<int:paper_id>/save_splits', methods=['POST'])
 @login_required
 def save_splits(paper_id):
- 
     paper = PastPaper.query.get_or_404(paper_id)
- 
     if paper.owner_id != current_user.id:
         abort(403)
- 
+
     paper_file = PaperFile.query.get_or_404(paper.filename)
- 
-    # Each question is an explicit {start_page, start_y, end_page, end_y} object
-    questions = request.get_json().get('questions', [])
- 
-    # Write PDF to a temp file once so crop_question can read it by path
+    data = request.get_json()
+    questions_data = data.get('questions', [])
+    auto_extract = data.get('auto_extract', False)
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(paper_file.data)
         tmp_path = tmp.name
- 
+
+    # Free the paper file data from memory immediately after writing to disk
+    del paper_file
+
     try:
-        reader = PdfReader(BytesIO(paper_file.data))
- 
-        for i, q in enumerate(questions):
- 
+        for i, q in enumerate(questions_data):
             writer = PdfWriter()
- 
+            reader = PdfReader(tmp_path)  # read fresh each time, don't hold in memory
+
             for page_num in range(q["start_page"], q["end_page"] + 1):
- 
                 if q["start_page"] == q["end_page"]:
                     y_top, y_bottom = q["start_y"], q["end_y"]
- 
                 elif page_num == q["start_page"]:
                     y_top, y_bottom = q["start_y"], 1.0
- 
                 elif page_num == q["end_page"]:
                     y_top, y_bottom = 0.0, q["end_y"]
- 
                 else:
                     y_top, y_bottom = 0.0, 1.0
- 
+
                 cropped_bytes = crop_question(tmp_path, page_num, y_top, y_bottom)
                 writer.add_page(PdfReader(BytesIO(cropped_bytes)).pages[0])
- 
+                del cropped_bytes  # free immediately
+
             output = BytesIO()
             writer.write(output)
- 
+            pdf_bytes = output.getvalue()
+            del writer, output  # free immediately
+
+            extracted_text = f"Question {i + 1}"
+            if auto_extract:
+                try:
+                    import fitz
+                    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                    text = "\n".join(page.get_text() for page in doc).strip()
+                    doc.close()
+                    if text:
+                        extracted_text = text
+                except Exception:
+                    pass
+
             filename = f"{uuid.uuid4().hex}.pdf"
- 
-            db.session.add(QuestionFile(filename=filename, data=output.getvalue()))
-            db.session.add(Question(text=f"Question {i + 1}", paper_id=paper.id, filename=filename))
- 
+            db.session.add(QuestionFile(filename=filename, data=pdf_bytes))
+            db.session.add(Question(text=extracted_text, paper_id=paper.id, filename=filename))
+            del pdf_bytes  # free immediately
+
+            # Commit each question individually to avoid one giant transaction
+            db.session.commit()
+
     finally:
         os.unlink(tmp_path)
- 
-    db.session.commit()
- 
+
     return {"success": True, "redirect": url_for('view_paper', paper_id=paper.id)}
 
 
