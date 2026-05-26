@@ -35,6 +35,9 @@ db.init_app(app)
 os.environ.get('GROQ_API_KEY')
 
 with app.app_context():
+    with db.engine.connect() as conn:
+        conn.execute(db.text('DROP TABLE IF EXISTS user_paper CASCADE'))
+        conn.commit()
     db.create_all()
 
 app.secret_key = os.environ.get('SECRET_KEY', 'db479c933cb9108665c3134693b03c96')
@@ -341,12 +344,12 @@ def api_search():
 @app.route('/add-to-my-files/<int:paper_id>', methods=['POST'])
 @login_required
 def add_to_my_files(paper_id):
-    exists = UserPaper.query.filter_by(
+    existing = UserPaper.query.filter_by(
         user_id=current_user.id,
         paper_id=paper_id
     ).first()
 
-    if not exists:
+    if not existing:
         db.session.add(UserPaper(
             user_id=current_user.id,
             paper_id=paper_id
@@ -655,32 +658,39 @@ def view_classes():
 @login_required
 def view_class(class_id):
     cls = Class.query.filter_by(id=class_id, user_id=current_user.id).first_or_404()
-
+ 
     # ── Papers ─────────────────────────────────────────────────────────────
+    # All papers in the user's files (owned or added)
+    user_paper_ids = {
+        up.paper_id for up in UserPaper.query.filter_by(user_id=current_user.id).all()
+    }
+    all_papers = (
+        PastPaper.query
+        .filter(PastPaper.id.in_(user_paper_ids))
+        .order_by(PastPaper.uploaded_at.desc())
+        .all()
+    )
+ 
     assigned_paper_ids = {s.paper_id for s in cls.paper_states}
-
-    # All papers this user has access to
-    user_paper_ids = {up.paper_id for up in UserPaper.query.filter_by(user_id=current_user.id).all()}
-    all_papers = PastPaper.query.filter(PastPaper.id.in_(user_paper_ids)).order_by(PastPaper.uploaded_at.desc()).all()
-
     assigned_papers   = [{"paper": p} for p in all_papers if p.id in assigned_paper_ids]
     unassigned_papers = [p for p in all_papers if p.id not in assigned_paper_ids]
-
+ 
     # ── Questions ──────────────────────────────────────────────────────────
+    # All questions from any paper in the user's files (owned or added)
+    all_questions = (
+        Question.query
+        .filter(Question.paper_id.in_(user_paper_ids))
+        .order_by(Question.id.desc())
+        .all()
+    )
+ 
     assigned_question_ids = {s.question_id for s in cls.question_states}
-
-    # All questions from papers this user owns
-    all_questions = Question.query.join(PastPaper).filter(
-        PastPaper.owner_id == current_user.id
-    ).order_by(Question.id.desc()).all()
-
     assigned_questions   = [{"question": q} for q in all_questions if q.id in assigned_question_ids]
     unassigned_questions = [q for q in all_questions if q.id not in assigned_question_ids]
-
-    # ── Per-page defaults (can be driven by query params if desired) ───────
+ 
     per_page_papers    = int(request.args.get('pp_papers',    10))
     per_page_questions = int(request.args.get('pp_questions', 10))
-
+ 
     return render_template(
         'class.html',
         cls=cls,
@@ -718,6 +728,7 @@ def delete_class(class_id):
     return redirect(url_for('view_classes'))
 
 def get_paper_class_status(user_id, paper_id):
+    """One dict per class the user owns: was this paper assigned to it?"""
     user_classes = Class.query.filter_by(user_id=user_id).order_by(Class.name).all()
     assigned_ids = {
         s.class_id for s in PaperUsed.query.filter_by(paper_id=paper_id).all()
@@ -726,8 +737,10 @@ def get_paper_class_status(user_id, paper_id):
         {"class_id": cls.id, "class_name": cls.name, "assigned": cls.id in assigned_ids}
         for cls in user_classes
     ]
-
+ 
+ 
 def get_question_class_status(user_id, question_id):
+    """One dict per class the user owns: was this question assigned to it?"""
     user_classes = Class.query.filter_by(user_id=user_id).order_by(Class.name).all()
     assigned_ids = {
         s.class_id for s in QuestionUsed.query.filter_by(question_id=question_id).all()
@@ -736,20 +749,32 @@ def get_question_class_status(user_id, question_id):
         {"class_id": cls.id, "class_name": cls.name, "assigned": cls.id in assigned_ids}
         for cls in user_classes
     ]
-
+ 
+ 
 def get_question_class_status_bulk(user_id, question_ids):
+    """
+    Bulk version — 2 DB queries total regardless of question count.
+    Returns { question_id: [{"class_id": ..., "class_name": ..., "assigned": ...}, ...] }
+    """
     user_classes = Class.query.filter_by(user_id=user_id).order_by(Class.name).all()
     if not user_classes or not question_ids:
         return {}
+ 
     all_states = QuestionUsed.query.filter(
         QuestionUsed.question_id.in_(question_ids)
     ).all()
+ 
     assigned_map = {}
     for state in all_states:
         assigned_map.setdefault(state.question_id, set()).add(state.class_id)
+ 
     return {
         qid: [
-            {"class_id": cls.id, "class_name": cls.name, "assigned": cls.id in assigned_map.get(qid, set())}
+            {
+                "class_id": cls.id,
+                "class_name": cls.name,
+                "assigned": cls.id in assigned_map.get(qid, set()),
+            }
             for cls in user_classes
         ]
         for qid in question_ids

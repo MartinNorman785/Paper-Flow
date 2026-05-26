@@ -15,7 +15,7 @@ class PastPaper(db.Model):
 
 class UserPaper(db.Model):
     id = db.Column(db.Integer)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, primary_key=True)
     paper_id = db.Column(db.Integer, db.ForeignKey('past_paper.id'), nullable=False, primary_key=True)
 
 class Question(db.Model):
