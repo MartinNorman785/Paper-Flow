@@ -3,15 +3,15 @@
 {% block title %}{{ format_filename(paper.filename) }} — PaperFlow{% endblock %}
  
 {% block styles %}
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght=400;500;600&display=swap" rel="stylesheet">
 {% endblock %}
  
 {% block content %}
 {% from "macros.html" import flash_messages %}
  
 <div class="vp-page">
-     <div class="vp-flash">{{ flash_messages() }}</div>
-    <!-- Header -->
+    <div class="vp-flash">{{ flash_messages() }}</div>
+
     <div class="vp-header">
         <div class="vp-header-left">
             <a href="{{ url_for('index') }}" class="vp-back">← My Papers</a>
@@ -34,9 +34,6 @@
                 <a href="{{ url_for('view_paper', paper_id=paper.id, edit_name=1) }}">
                     <button class="hbtn-ghost">Rename</button>
                 </a>
-                <form method="POST" action="{{ url_for('process_paper', paper_id=paper.id) }}">
-                    <button class="hbtn-ghost" type="submit">Process PDF</button>
-                </form>
                 <form method="POST" action="{{ url_for('delete_paper', paper_id=paper.id) }}"
                       onsubmit="return confirm('Delete this paper permanently?');">
                     <button class="hbtn-red" type="submit">Delete</button>
@@ -56,11 +53,8 @@
         </div>
     </div>
 
- 
-    <!-- Body -->
     <div class="vp-body">
  
-        <!-- PDF -->
         <div class="vp-pdf-panel">
             <div class="vp-pdf-toolbar">
                 <span class="toolbar-label">Preview</span>
@@ -69,11 +63,47 @@
                 </a>
             </div>
             <iframe src="{{ url_for('uploaded_file', filename=paper.filename) }}"></iframe>
+
+            <div class="class-panel">
+                <div class="class-panel-header" onclick="togglePanel(this)">
+                    <h3>
+                        Classes
+                        {% if class_status %}
+                            {% set n = class_status | selectattr('assigned') | list | length %}
+                            &mdash; {{ n }}/{{ class_status | length }} assigned
+                        {% endif %}
+                    </h3>
+                    <span class="caret">▼</span>
+                </div>
+                <div class="class-list">
+                    {% if class_status %}
+                        {% for entry in class_status %}
+                        <div class="class-row">
+                            <span class="class-dot {{ 'assigned' if entry.assigned else 'unassigned' }}"></span>
+                            <span class="class-name">{{ entry.class_name }}</span>
+                            <form method="POST"
+                                  action="{{ url_for('toggle_paper_class', paper_id=paper.id, class_id=entry.class_id) }}"
+                                  onclick="event.stopPropagation();">
+                                <button type="submit"
+                                        class="class-pill {{ 'assigned' if entry.assigned else 'unassigned' }}"
+                                        style="border:none; cursor:pointer; font-family:'DM Sans',sans-serif; transition: opacity .15s;"
+                                        onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+                                    {{ 'Remove' if entry.assigned else 'Assign' }}
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="no-classes-msg">
+                            You have no classes yet.
+                            <a href="{{ url_for('classes.new_class') }}" style="color:#2d5a3d;">Create one</a>
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
         </div>
  
-        <!-- Questions -->
         <div class="vp-q-panel">
- 
             <div class="vp-q-header">
                 <div class="vp-q-header-top">
                     <h2>Questions</h2>
@@ -87,8 +117,14 @@
                     <button class="qbtn" type="button"
                             onclick="window.location='{{ url_for('add_question', paper_id=paper.id) }}'">Add Questions</button>
                     {% if paper.questions %}
-                    <button class="qbtn-red" type="submit"
-                        onclick="if(confirm('Delete all questions?')) window.location='{{ url_for('delete_questions', paper_id=paper.id) }}">Delete All</button>
+                    <form method="POST" action="{{ url_for('extract_all_question_text', paper_id=paper.id) }}"
+                          onsubmit="return confirm('Overwrite all question text with text extracted from their PDFs?');">
+                        <button class="qbtn" type="submit">Extract All Text</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('delete_questions', paper_id=paper.id) }}"
+                          onsubmit="return confirm('Delete all questions?');">
+                        <button class="qbtn-red" type="submit">Delete All</button>
+                    </form>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -97,28 +133,48 @@
             <div class="vp-q-list">
                 {% if paper.questions %}
                     {% for q in paper.questions %}
-                    <a href="{{ url_for('view_question', question_id=q.id) }}" class="q-row">
-                        <span class="q-num">{{ loop.index }}</span>
-                        <span class="q-text">{{ q.text }}</span>
-                        {% if q.tags %}
-                        <div class="q-tags">
-                            {% for tag in q.tags.split(',') %}
-                                <span class="q-tag">{{ tag.strip() }}</span>
-                            {% endfor %}
+                    <div class="q-card"
+                        onclick="navigateToQuestion(event, '{{ url_for('view_question', question_id=q.id) }}')">
+            
+                        <!-- Top: number · text · class dots -->
+                        <div class="q-card-top">
+                            <span class="q-num">{{ loop.index }}</span>
+                            <span class="q-text">{{ q.text }}</span>
+                            {% if question_class_status and q.id in question_class_status %}
+                            <div class="q-class-dots">
+                                {% for entry in question_class_status[q.id] %}
+                                    <span class="class-dot {{ 'assigned' if entry.assigned else 'unassigned' }}"
+                                        title="{{ entry.class_name }}: {{ 'Added' if entry.assigned else 'Not added' }}"></span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
-                        {% endif %}
-                        {% if paper.owner_id == current_user.id %}
-                        <div class="q-row-actions" onclick="event.preventDefault();">
-                            <a href="{{ url_for('edit_question', question_id=q.id) }}">
-                                <button class="qa-edit">Edit</button>
-                            </a>
-                            <form action="{{ url_for('delete_question', question_id=q.id) }}" method="POST"
-                                  onsubmit="return confirm('Delete this question?');">
-                                <button class="qa-del" type="submit">Delete</button>
-                            </form>
+            
+                        <!-- Bottom: tags · edit/delete -->
+                        <div class="q-card-bottom" onclick="event.stopPropagation();">
+                            <div class="q-tags">
+                                {% if q.tags %}
+                                    {% for tag in q.tags.split(',') %}
+                                        <span class="q-tag">{{ tag.strip() }}</span>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            {% if paper.owner_id == current_user.id %}
+                            <div class="q-row-actions">
+                                <a href="{{ url_for('edit_question', question_id=q.id) }}"
+                                onclick="event.stopPropagation();">
+                                    <button class="qa-edit">Edit</button>
+                                </a>
+                                <form action="{{ url_for('delete_question', question_id=q.id) }}" method="POST"
+                                    onsubmit="return confirm('Delete this question?');"
+                                    onclick="event.stopPropagation();">
+                                    <button class="qa-del" type="submit">Delete</button>
+                                </form>
+                            </div>
+                            {% endif %}
                         </div>
-                        {% endif %}
-                    </a>
+            
+                    </div>
                     {% endfor %}
                 {% else %}
                     <div class="q-empty">
@@ -127,9 +183,24 @@
                     </div>
                 {% endif %}
             </div>
- 
         </div>
     </div>
- 
 </div>
+
+
+
+<script>
+    function togglePanel(header) {
+        header.classList.toggle('open');
+        header.nextElementSibling.classList.toggle('open');
+    }
+
+    // Handles safe navigation so that buttons/forms inside the card don't trigger a redirect
+    function navigateToQuestion(event, url) {
+        const ignoreSelectors = 'button, form, a, input, .q-class-dots';
+        if (!event.target.closest(ignoreSelectors)) {
+            window.location.href = url;
+        }
+    }
+</script>
 {% endblock %}

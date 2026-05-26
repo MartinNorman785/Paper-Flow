@@ -1,59 +1,165 @@
+
 {% extends "base.html" %}
-
-{% block title %}Question {{ question.id }}{% endblock %}
-
+ 
+{% block title %}{{ question.text[:50] }} — PaperFlow{% endblock %}
+ 
+{% block styles %}
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+{% endblock %}
+ 
 {% block content %}
-    <header style="display: flex; justify-content: space-between; align-items: center;">
-        <h1>{{ question.text[:60] }}{% if question.text|length > 60 %}…{% endif %}</h1>
-        {% from "macros.html" import flash_messages %}
+{% from "macros.html" import flash_messages %}
+ 
+<div class="vp-page">
+    <div class="vp-flash">{{ flash_messages() }}</div>
+ 
+    <!-- Header -->
+    <div class="vp-header">
+        <div class="vp-header-left">
+            <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}" class="vp-back">← Back to Paper</a>
+            <h1 class="vp-title">{{ question.text[:70] }}{% if question.text|length > 70 %}…{% endif %}</h1>
+        </div>
+ 
+        <div class="vp-header-actions">
+            <a href="{{ url_for('edit_question', question_id=question.id) }}">
+                <button class="hbtn-ghost">Edit</button>
+            </a>
+            {% if question.filename %}
+            <form method="POST" action="{{ url_for('extract_question_text', question_id=question.id) }}"
+                  onsubmit="return confirm('This will overwrite the current question text with text extracted from the PDF. Continue?');">
+                <button class="hbtn-ghost" type="submit">Extract Text</button>
+            </form>
+            {% endif %}
+            <form method="POST" action="{{ url_for('llm_process_question', question_id=question.id) }}"
+                onsubmit="return confirm('Clean text and auto-tag this question using AI?');">
+                <button class="hbtn-ghost" type="submit">AI Process</button>
+            </form>
+            <form action="{{ url_for('delete_question', question_id=question.id) }}" method="POST"
+                  onsubmit="return confirm('Delete this question?');">
+                <button class="hbtn-red">Delete</button>
+            </form>
 
-        {{ flash_messages() }}
-        <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}"><button>Back to Past Paper</button></a>
-    </header>
-
-{% if question.filename %}
-    <h3>PDF Preview</h3>
-
-    <div style="border: 1px solid #ccc; border-radius: 5px; margin-bottom: 5px;">
-        <embed src="{{ url_for('question_pdf', filename=question.filename) }}" type="application/pdf" width="100%" height="400px">    
+        </div>
     </div>
-{% else %}
-<div style="display: flex; justify-content: space-between; align-items: center;">
-    <p>No PDF available for this question.</p>
+ 
+    <!-- Body -->
+    <div class="vp-body">
+ 
+        <!-- PDF panel -->
+        <div class="vp-pdf-panel">
+            <div class="vp-pdf-toolbar">
+                <span class="toolbar-label">Preview</span>
+                {% if question.filename %}
+                <a href="{{ url_for('uploaded_question', filename=question.filename) }}" download>
+                    <button class="qbtn">Download</button>
+                </a>
+                {% endif %}
+            </div>
+ 
+            {% if question.filename %}
+                <iframe src="{{ url_for('uploaded_question', filename=question.filename) }}"></iframe>
+            {% else %}
+                <div class="q-empty" style="flex:1; margin: 16px;">
+                    <div class="q-empty-icon">📄</div>
+                    <p>No PDF for this question.</p>
+                </div>
+            {% endif %}
+ 
+            <!-- Class assignment panel -->
+            <div class="class-panel">
+                <div class="class-panel-header" onclick="togglePanel(this)">
+                    <h3>
+                        Classes
+                        {% if class_status %}
+                            {% set n = class_status | selectattr('assigned') | list | length %}
+                            &mdash; {{ n }}/{{ class_status | length }} assigned
+                        {% endif %}
+                    </h3>
+                    <span class="caret">▼</span>
+                </div>
+                <div class="class-list">
+                    {% if class_status %}
+                        {% for entry in class_status %}
+                        <div class="class-row">
+                            <span class="class-dot {{ 'assigned' if entry.assigned else 'unassigned' }}"></span>
+                            <span class="class-name">{{ entry.class_name }}</span>
+                            <form method="POST"
+                                  action="{{ url_for('toggle_question_class', question_id=question.id, class_id=entry.class_id) }}"
+                                  onclick="event.stopPropagation();">
+                                <button type="submit"
+                                        class="class-pill {{ 'assigned' if entry.assigned else 'unassigned' }}"
+                                        style="border:none; cursor:pointer;">
+                                    {{ 'Remove' if entry.assigned else 'Assign' }}
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="no-classes-msg">
+                            You have no classes yet.
+                            <a href="{{ url_for('classes.new_class') }}" style="color:#2d5a3d;">Create one</a>
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+ 
+        <!-- Right panel: question details -->
+        <div class="vp-q-panel">
+            <div class="vp-q-header">
+                <div class="vp-q-header-top">
+                    <h2>Question</h2>
+                    {% if question.tags %}
+                    <div class="q-tags">
+                        {% for tag in question.tags.split(',') %}
+                            <span class="q-tag">{{ tag.strip() }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+ 
+            <div class="vp-q-list">
+ 
+                <!-- Full question text -->
+                <div class="q-detail-block">
+                    <div class="q-detail-label">Text</div>
+                    <div class="q-detail-body">{{ question.text }}</div>
+                </div>
+ 
+                <!-- Tags -->
+                {% if question.tags %}
+                <div class="q-detail-block">
+                    <div class="q-detail-label">Tags</div>
+                    <div class="q-detail-body" style="display:flex; flex-wrap:wrap; gap:5px;">
+                        {% for tag in question.tags.split(',') %}
+                            <span class="q-tag">{{ tag.strip() }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+ 
+                <!-- From paper -->
+                <div class="q-detail-block">
+                    <div class="q-detail-label">From Paper</div>
+                    <div class="q-detail-body">
+                        <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}"
+                           style="color: var(--vp-accent); font-weight:500;">
+                            {{ format_filename(question.paper.filename) }}
+                        </a>
+                    </div>
+                </div>
+ 
+            </div>
+        </div>
+ 
+    </div><!-- /vp-body -->
 </div>
-{% endif %}
-
-<!-- Actions -->
-<div style="display: flex; gap: 10px; margin-top: 15px; padding-bottom: 10px;">
-    <a href="{{ url_for('edit_question', question_id=question.id) }}">
-        <button>Edit Question</button>
-    </a>
-    {% if question.filename %}
-    <a href="{{ url_for('uploaded_question', filename=question.filename) }}" download>
-        <button type="submit" class="btn btn-primary">
-            Download PDF
-        </button>
-    </a>
-    {% endif %}
-    <form action="{{ url_for('delete_question', question_id=question.id) }}" method="POST" style="display:inline;">
-        <button style="background-color: #cd4236;">Delete</button>
-    </form>
-
-
-
-</div>
-
-<div style="padding-left: 10px; border: 1px solid #ccc; border-radius: 5px; display: flex; justify-content: space-between">
-    <p>{{ question.text }}</p>
-    {% if question.tags %}
-        <p style="padding-right: 5px">
-            {% for tag in question.tags.split(',') %}
-                <span class="tag">{{ tag.strip() }}</span>
-            {% endfor %}
-        </p>
-    {% endif %}
-</div>
-
-
-
+ 
+<script>
+    function togglePanel(header) {
+        header.classList.toggle('open');
+        header.nextElementSibling.classList.toggle('open');
+    }
+</script>
 {% endblock %}

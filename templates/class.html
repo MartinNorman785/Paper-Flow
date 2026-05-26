@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% block title %}{{ cls.name }} — PaperFlow{% endblock %}
+
+{% block content %}
+{% from "macros.html" import flash_messages %}
+
+<div class="index-layout">
+    {{ flash_messages() }}
+
+    <!-- Page header -->
+    <div class="index-topbar">
+        <div class="index-topbar-left">
+            <a href="{{ url_for('view_classes') }}"
+               style="font-size:0.78rem; color:#6f8197; text-decoration:none; display:block; margin-bottom:4px;">
+                ← Classes
+            </a>
+            <h1>{{ cls.name }}</h1>
+            <p>
+                {{ assigned_papers|length }} paper{{ 's' if assigned_papers|length != 1 }} assigned
+                &middot;
+                {{ assigned_questions|length }} question{{ 's' if assigned_questions|length != 1 }} assigned
+            </p>
+        </div>
+        <form method="POST"
+              action="{{ url_for('delete_class', class_id=cls.id) }}"
+              onsubmit="return confirm('Delete class \'{{ cls.name }}\'?');">
+            <button class="btn-red">Delete Class</button>
+        </form>
+    </div>
+
+    <!-- Tabs -->
+    <div class="cd-tabs">
+        <button class="cd-tab active" onclick="switchTab('papers', this)">
+            Papers
+            <span class="cd-tab-badge">{{ assigned_papers|length }}/{{ assigned_papers|length + unassigned_papers|length }}</span>
+        </button>
+        <button class="cd-tab" onclick="switchTab('questions', this)">
+            Questions
+            <span class="cd-tab-badge">{{ assigned_questions|length }}/{{ assigned_questions|length + unassigned_questions|length }}</span>
+        </button>
+    </div>
+
+    <!-- ── PAPERS TAB ── -->
+    <div id="tab-papers" class="cd-tab-content">
+
+        <div class="cd-toolbar">
+            <input class="cd-search" type="text" placeholder="Search papers…"
+                   oninput="filterTable('papers', this.value)">
+            <div class="cd-per-page">
+                Show
+                <select onchange="changePerPage('papers', this.value)">
+                    <option value="10" {% if per_page_papers == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if per_page_papers == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if per_page_papers == 50 %}selected{% endif %}>50</option>
+                    <option value="9999">All</option>
+                </select>
+                per page
+            </div>
+        </div>
+
+        <!-- Assigned papers -->
+        <div class="cd-section-label">Assigned ({{ assigned_papers|length }})</div>
+        {% if assigned_papers %}
+        <table class="cd-table" id="table-papers-assigned">
+            <thead>
+                <tr>
+                    <th>Paper</th>
+                    <th>Questions</th>
+                    <th>Uploaded</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in assigned_papers %}
+                <tr class="cd-row" data-name="{{ format_filename(entry.paper.filename)|lower }}">
+                    <td>
+                        <a href="{{ url_for('view_paper', paper_id=entry.paper.id) }}"
+                           class="cd-link">{{ format_filename(entry.paper.filename) }}</a>
+                    </td>
+                    <td class="cd-muted">{{ entry.paper.questions|length }}</td>
+                    <td class="cd-muted">{{ entry.paper.uploaded_at.strftime('%d %b %Y') }}</td>
+                    <td>
+                        <form method="POST"
+                              action="{{ url_for('toggle_paper_class', paper_id=entry.paper.id, class_id=cls.id) }}">
+                            <button class="qa-del" type="submit">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <div class="cd-empty">No papers assigned yet.</div>
+        {% endif %}
+
+        <!-- Unassigned papers -->
+        <div class="cd-section-label" style="margin-top:1.5rem;">
+            Not Assigned ({{ unassigned_papers|length }})
+        </div>
+        {% if unassigned_papers %}
+        <table class="cd-table" id="table-papers-unassigned">
+            <thead>
+                <tr>
+                    <th>Paper</th>
+                    <th>Questions</th>
+                    <th>Uploaded</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for paper in unassigned_papers %}
+                <tr class="cd-row" data-name="{{ format_filename(paper.filename)|lower }}">
+                    <td>
+                        <a href="{{ url_for('view_paper', paper_id=paper.id) }}"
+                           class="cd-link">{{ format_filename(paper.filename) }}</a>
+                    </td>
+                    <td class="cd-muted">{{ paper.questions|length }}</td>
+                    <td class="cd-muted">{{ paper.uploaded_at.strftime('%d %b %Y') }}</td>
+                    <td>
+                        <form method="POST"
+                              action="{{ url_for('toggle_paper_class', paper_id=paper.id, class_id=cls.id) }}">
+                            <button class="qa-edit" type="submit">Assign</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <div class="cd-empty">All your papers have been assigned.</div>
+        {% endif %}
+
+        <!-- Pagination for papers -->
+        <div class="cd-pagination" id="pagination-papers"></div>
+    </div>
+
+    <!-- ── QUESTIONS TAB ── -->
+    <div id="tab-questions" class="cd-tab-content" style="display:none;">
+
+        <div class="cd-toolbar">
+            <input class="cd-search" type="text" placeholder="Search questions…"
+                   oninput="filterTable('questions', this.value)">
+            <div class="cd-per-page">
+                Show
+                <select onchange="changePerPage('questions', this.value)">
+                    <option value="10" {% if per_page_questions == 10 %}selected{% endif %}>10</option>
+                    <option value="25" {% if per_page_questions == 25 %}selected{% endif %}>25</option>
+                    <option value="50" {% if per_page_questions == 50 %}selected{% endif %}>50</option>
+                    <option value="9999">All</option>
+                </select>
+                per page
+            </div>
+        </div>
+
+        <!-- Assigned questions -->
+        <div class="cd-section-label">Assigned ({{ assigned_questions|length }})</div>
+        {% if assigned_questions %}
+        <table class="cd-table" id="table-questions-assigned">
+            <thead>
+                <tr>
+                    <th>Question</th>
+                    <th>Paper</th>
+                    <th>Tags</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in assigned_questions %}
+                <tr class="cd-row" data-name="{{ entry.question.text|lower }}">
+                    <td>
+                        <a href="{{ url_for('view_question', question_id=entry.question.id) }}"
+                           class="cd-link">
+                            {{ entry.question.text[:60] }}{% if entry.question.text|length > 60 %}…{% endif %}
+                        </a>
+                    </td>
+                    <td class="cd-muted">
+                        <a href="{{ url_for('view_paper', paper_id=entry.question.paper_id) }}"
+                           class="cd-link cd-muted">
+                            {{ format_filename(entry.question.paper.filename) }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if entry.question.tags %}
+                            {% for tag in entry.question.tags.split(',') %}
+                                <span class="q-tag">{{ tag.strip() }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="cd-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST"
+                              action="{{ url_for('toggle_question_class', question_id=entry.question.id, class_id=cls.id) }}">
+                            <button class="qa-del" type="submit">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <div class="cd-empty">No questions assigned yet.</div>
+        {% endif %}
+
+        <!-- Unassigned questions -->
+        <div class="cd-section-label" style="margin-top:1.5rem;">
+            Not Assigned ({{ unassigned_questions|length }})
+        </div>
+        {% if unassigned_questions %}
+        <table class="cd-table" id="table-questions-unassigned">
+            <thead>
+                <tr>
+                    <th>Question</th>
+                    <th>Paper</th>
+                    <th>Tags</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for question in unassigned_questions %}
+                <tr class="cd-row" data-name="{{ question.text|lower }}">
+                    <td>
+                        <a href="{{ url_for('view_question', question_id=question.id) }}"
+                           class="cd-link">
+                            {{ question.text[:60] }}{% if question.text|length > 60 %}…{% endif %}
+                        </a>
+                    </td>
+                    <td class="cd-muted">
+                        <a href="{{ url_for('view_paper', paper_id=question.paper_id) }}"
+                           class="cd-link cd-muted">
+                            {{ format_filename(question.paper.filename) }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if question.tags %}
+                            {% for tag in question.tags.split(',') %}
+                                <span class="q-tag">{{ tag.strip() }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="cd-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST"
+                              action="{{ url_for('toggle_question_class', question_id=question.id, class_id=cls.id) }}">
+                            <button class="qa-edit" type="submit">Assign</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <div class="cd-empty">All your questions have been assigned.</div>
+        {% endif %}
+
+        <div class="cd-pagination" id="pagination-questions"></div>
+    </div>
+</div>
+
+
+<script>
+    // ── Tab switching ──────────────────────────────────────────────────────
+    function switchTab(name, btn) {
+        document.querySelectorAll('.cd-tab-content').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.cd-tab').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + name).style.display = 'block';
+        btn.classList.add('active');
+    }
+
+    // ── Per-page state ─────────────────────────────────────────────────────
+    const state = {
+        papers:    { perPage: {{ per_page_papers }},    page: 1, query: '' },
+        questions: { perPage: {{ per_page_questions }}, page: 1, query: '' },
+    };
+
+    function changePerPage(tab, val) {
+        state[tab].perPage = parseInt(val);
+        state[tab].page = 1;
+        renderTab(tab);
+    }
+
+    function filterTable(tab, query) {
+        state[tab].query = query.toLowerCase();
+        state[tab].page = 1;
+        renderTab(tab);
+    }
+
+    // ── Core render ────────────────────────────────────────────────────────
+    function renderTab(tab) {
+        const { perPage, page, query } = state[tab];
+
+        ['assigned', 'unassigned'].forEach(section => {
+            const tableId = `table-${tab}-${section}`;
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const rows = Array.from(table.querySelectorAll('tbody .cd-row'));
+            const visible = rows.filter(row => {
+                const name = row.dataset.name || '';
+                return !query || name.includes(query);
+            });
+
+            const total = visible.length;
+            const start = (page - 1) * perPage;
+            const end   = start + perPage;
+
+            rows.forEach(r => r.style.display = 'none');
+            visible.forEach((r, i) => {
+                r.style.display = (i >= start && i < end) ? '' : 'none';
+            });
+        });
+
+        renderPagination(tab);
+    }
+
+    function renderPagination(tab) {
+        const { perPage, page, query } = state[tab];
+        const container = document.getElementById(`pagination-${tab}`);
+        if (!container) return;
+
+        // Count total visible rows across both sections
+        let total = 0;
+        ['assigned', 'unassigned'].forEach(section => {
+            const table = document.getElementById(`table-${tab}-${section}`);
+            if (!table) return;
+            table.querySelectorAll('tbody .cd-row').forEach(row => {
+                const name = row.dataset.name || '';
+                if (!query || name.includes(query)) total++;
+            });
+        });
+
+        if (perPage >= 9999) { container.innerHTML = ''; return; }
+
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        let html = '';
+
+        html += `<button class="cd-page-btn" onclick="goPage('${tab}', ${page - 1})" ${page <= 1 ? 'disabled' : ''}>‹</button>`;
+        for (let i = 1; i <= totalPages; i++) {
+            if (totalPages > 7 && i > 2 && i < totalPages - 1 && Math.abs(i - page) > 1) {
+                if (i === 3 || i === totalPages - 2) html += `<span style="padding:0 4px; color:#6f8197;">…</span>`;
+                continue;
+            }
+            html += `<button class="cd-page-btn ${i === page ? 'active' : ''}" onclick="goPage('${tab}', ${i})">${i}</button>`;
+        }
+        html += `<button class="cd-page-btn" onclick="goPage('${tab}', ${page + 1})" ${page >= totalPages ? 'disabled' : ''}>›</button>`;
+
+        container.innerHTML = html;
+    }
+
+    function goPage(tab, p) {
+        const { perPage, query } = state[tab];
+        let total = 0;
+        ['assigned', 'unassigned'].forEach(section => {
+            const table = document.getElementById(`table-${tab}-${section}`);
+            if (!table) return;
+            table.querySelectorAll('tbody .cd-row').forEach(row => {
+                const name = row.dataset.name || '';
+                if (!query || name.includes(query)) total++;
+            });
+        });
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+        state[tab].page = Math.min(Math.max(1, p), totalPages);
+        renderTab(tab);
+    }
+
+    // Initial render
+    renderTab('papers');
+    renderTab('questions');
+</script>
+{% endblock %}

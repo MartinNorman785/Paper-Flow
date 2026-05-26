@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+ 
+{% block title %}New Class — PaperFlow{% endblock %}
+ 
+{% block content %}
+{% from "macros.html" import flash_messages %}
+ 
+<div class="page-content" style="max-width: 480px;">
+    {{ flash_messages() }}
+ 
+    <header>
+        <a href="{{ url_for('view_classes') }}"
+           style="font-size: 0.82rem; color: #6f8197; text-decoration: none;">← Classes</a>
+        <h1>New Class</h1>
+    </header>
+ 
+    <form method="POST" action="{{ url_for('new_class') }}">
+        <label style="font-size: 0.82rem; font-weight: 600; color: #6f8197;
+                      text-transform: uppercase; letter-spacing: 0.05em;">
+            Class Name
+        </label>
+        <input type="text" name="name" placeholder="e.g. Year 12 Maths" required autofocus>
+        <button type="submit">Create Class</button>
+    </form>
+</div>
+{% endblock %}

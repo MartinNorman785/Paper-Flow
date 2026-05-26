@@ -6,12 +6,10 @@
 <header style="display: flex; justify-content: space-between; align-items: center;">
     <h1>Split Paper</h1>
     {% from "macros.html" import flash_messages %}
-
     {{ flash_messages() }}
     <a href="{{ url_for('view_paper', paper_id=paper.id) }}"><button>Back to Past Paper</button></a>
 </header>
 
- 
 <div class="split-layout">
  
     <div class="pdf-column">
@@ -33,6 +31,25 @@
                     <li><strong>Right-click</strong> either line to remove the pair.</li>
                 </ol>
             </div>
+
+            <!-- Extract toggle -->
+            <div class="instructions-card">
+                <h5>Text Extraction</h5>
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer;
+                              font-size:0.88rem; color:#495057; font-weight:500;">
+                    <div class="toggle-wrap">
+                        <input type="checkbox" id="autoExtract" style="display:none;">
+                        <div class="toggle-track" id="toggleTrack" onclick="toggleExtract()">
+                            <div class="toggle-thumb"></div>
+                        </div>
+                    </div>
+                    Auto-extract text from PDFs
+                </label>
+                <p style="font-size:0.78rem; color:#6c757d; margin:6px 0 0; line-height:1.4;">
+                    Uses PyMuPDF to read text from each cropped question.
+                    Replaces the default "Question N" label.
+                </p>
+            </div>
  
             <div id="question-list"></div>
  
@@ -49,6 +66,32 @@
         </div>
     </div>
 </div>
+
+<style>
+    .toggle-wrap { flex-shrink: 0; }
+    .toggle-track {
+        width: 36px;
+        height: 20px;
+        background: #d0d9e3;
+        border-radius: 99px;
+        position: relative;
+        cursor: pointer;
+        transition: background .2s;
+    }
+    .toggle-track.on { background: #198754; }
+    .toggle-thumb {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 14px;
+        height: 14px;
+        background: #fff;
+        border-radius: 50%;
+        transition: left .2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+    }
+    .toggle-track.on .toggle-thumb { left: 19px; }
+</style>
  
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
@@ -79,7 +122,6 @@ document.addEventListener("mousemove", e => {
  
             let yPos = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
  
-            // Prevent start crossing end and vice-versa (only when on the same page)
             const partner = role === "start" ? pair.endLine : pair.startLine;
             if (parseInt(page.dataset.page) === parseInt(partner.dataset.page)) {
                 const partnerY = parseFloat(partner.style.top);
@@ -117,7 +159,6 @@ function makeLine(container, yPx, pageNum, role, pair) {
     const label = document.createElement("div");
     label.className = "bracket-label";
     label.style.background = pair.color;
-    // num isn't known yet when pair is being constructed; set after push via updateLabels
     label.textContent = role === "start" ? `▶ Q? start` : `■ Q? end`;
     line.appendChild(label);
  
@@ -159,7 +200,6 @@ function removePair(pair) {
     pair.endLine.remove();
     if (pair.region) pair.region.remove();
     pairs.splice(pairs.indexOf(pair), 1);
-    // Renumber and recolour remaining pairs by their new index
     pairs.forEach((p, i) => {
         p.color = COLORS[i % COLORS.length];
         p.startLine.querySelector(".bracket-label").style.background = p.color;
@@ -211,6 +251,14 @@ function rebuildSidebar() {
         questionListDiv.appendChild(tag);
     });
 }
+
+// ── extract toggle ────────────────────────────────────────────────────────
+function toggleExtract() {
+    const track = document.getElementById('toggleTrack');
+    const checkbox = document.getElementById('autoExtract');
+    track.classList.toggle('on');
+    checkbox.checked = track.classList.contains('on');
+}
  
 // ── render PDF ────────────────────────────────────────────────────────────
 pdfjsLib.getDocument(pdfUrl).promise.then(async pdf => {
@@ -239,6 +287,18 @@ pdfjsLib.getDocument(pdfUrl).promise.then(async pdf => {
  
 // ── save ──────────────────────────────────────────────────────────────────
 async function saveSplits() {
+    if (!pairs.length) {
+        alert('No questions marked yet. Double-click the PDF to add brackets.');
+        return;
+    }
+
+    const autoExtract = document.getElementById('autoExtract').checked;
+
+    if (autoExtract && !confirm(
+        'Auto-extract text from each cropped question PDF?\n\n' +
+        'This will replace the default "Question N" labels with the actual PDF text content.'
+    )) return;
+
     const questions = pairs.map(pair => ({
         start_page: parseInt(pair.startLine.dataset.page),
         start_y:    parseFloat(pair.startLine.dataset.y),
@@ -251,7 +311,7 @@ async function saveSplits() {
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ questions })
+            body: JSON.stringify({ questions, auto_extract: autoExtract })
         }
     );
  

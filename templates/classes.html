@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}My Classes — PaperFlow{% endblock %}
+
+{% block content %}
+{% from "macros.html" import flash_messages %}
+
+<div class="index-layout">
+    {{ flash_messages() }}
+
+    <div class="index-topbar">
+        <div class="index-topbar-left">
+            <h1>My Classes</h1>
+            <p>
+                {% if user_classes %}
+                    {{ user_classes | length }} class{{ 'es' if user_classes | length != 1 }}
+                {% else %}
+                    No classes yet
+                {% endif %}
+            </p>
+        </div>
+        <a href="{{ url_for('new_class') }}">
+            <button>+ New Class</button>
+        </a>
+    </div>
+
+    {% if not user_classes %}
+        <div class="empty-state">
+            <div class="empty-icon">📂</div>
+            <p>You haven't created any classes yet.</p>
+            <a href="{{ url_for('new_class') }}"><button>Create your first class</button></a>
+        </div>
+
+    {% else %}
+        <div class="papers-grid">
+            {% for cls in user_classes %}
+                {% set papers = class_papers[cls.id] %}
+                {% set flagged_count = papers | selectattr('flagged') | list | length %}
+
+                <div class="paper-card-wrapper">
+                    <a href="{{ url_for('view_class', class_id=cls.id) }}" class="paper-card-link">
+                        <div class="paper-card">
+                            <div class="paper-card-body">
+                                <h3>{{ cls.name }}</h3>
+                                <div class="paper-meta">
+                                    <span class="meta-pill">{{ papers | length }} paper{{ 's' if papers | length != 1 }}</span>
+                                    {% if flagged_count %}
+                                        <span class="meta-pill" style="background:#fff0ef; border-color:#f5c6c3; color:#cd4236;">
+                                            {{ flagged_count }} flagged
+                                        </span>
+                                    {% endif %}
+                                </div>
+
+                                {% if papers %}
+                                    <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 4px;">
+                                        {% for entry in papers[:3] %}
+                                            <div style="font-size: 0.78rem; color: #6f8197; display: flex; align-items: center; gap: 6px;">
+                                                <span>📄</span>
+                                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                                    {{ format_filename(entry.paper.filename) }}
+                                                </span>
+                                                {% if entry.flagged %}
+                                                    <span class="class-pill assigned" style="flex-shrink:0;">Flagged</span>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                        {% if papers | length > 3 %}
+                                            <div style="font-size: 0.75rem; color: #6f8197; font-style: italic;">
+                                                + {{ papers | length - 3 }} more
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <p style="font-size: 0.8rem; color: #6f8197; margin-top: 8px; font-style: italic;">
+                                        No papers assigned yet.
+                                    </p>
+                                {% endif %}
+                            </div>
+
+                            <div class="paper-card-footer">
+                                <form method="POST"
+                                      action="{{ url_for('delete_class', class_id=cls.id) }}"
+                                      onsubmit="return confirm('Delete class \'{{ cls.name }}\'?');"
+                                      onclick="event.preventDefault(); event.stopPropagation(); this.submit();">
+                                    <button class="btn-card-delete" type="submit">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

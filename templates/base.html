@@ -2,57 +2,61 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{% block title %}PaperFlow{% endblock %}</title>
-                <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-                    {% block styles %}{% endblock %}
-                    </head>
-                    <body>
-                     
-                         <nav class="sidebar">
-                          
-                                  <div class="brand">
-                                              <span class="brand-logo"></span>
-                                                          <span class="brand-name">PaperFlow</span>
-                                                                  </div>
-                                                                   
-                                                                           <div class="nav-links">
-                                                                                       {% if current_user.is_authenticated %}
-                                                                                                       <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
-                                                                                                                           <span class="nav-icon"></span> Home
-                                                                                                                                           </a>
-                                                                                                                                                           <a href="{{ url_for('upload') }}" class="nav-link {% if request.endpoint == 'upload' %}active{% endif %}">
-                                                                                                                                                                               <span class="nav-icon"></span> Upload
-                                                                                                                                                                                               </a>
-                                                                                                                                                                                                               <a href="{{ url_for('explore') }}" class="nav-link {% if request.endpoint == 'explore' %}active{% endif %}">
-                                                                                                                                                                                                                                   <span class="nav-icon"></span> Explore
-                                                                                                                                                                                                                                                   </a>
-                                                                                                                                                                                                                                                               {% else %}
-                                                                                                                                                                                                                                                                               <a href="{{ url_for('login') }}" class="nav-link">
-                                                                                                                                                                                                                                                                                                   <span class="nav-icon"></span> Login
-                                                                                                                                                                                                                                                                                                                   </a>
-                                                                                                                                                                                                                                                                                                                                   <a href="{{ url_for('register') }}" class="nav-link">
-                                                                                                                                                                                                                                                                                                                                                       <span class="nav-icon"></span> Register
-                                                                                                                                                                                                                                                                                                                                                                       </a>
-                                                                                                                                                                                                                                                                                                                                                                                   {% endif %}
-                                                                                                                                                                                                                                                                                                                                                                                           </div>
-                                                                                                                                                                                                                                                                                                                                                                                            
-                                                                                                                                                                                                                                                                                                                                                                                                    {% if current_user.is_authenticated %}
-                                                                                                                                                                                                                                                                                                                                                                                                            <div class="sidebar-footer">
-                                                                                                                                                                                                                                                                                                                                                                                                                        <div class="user-info">
-                                                                                                                                                                                                                                                                                                                                                                                                                                        <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        <span class="user-name">{{ current_user.username }}</span>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                    </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <a href="{{ url_for('logout') }}" class="logout-btn" title="Logout">⏻</a>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                {% endif %}
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     </nav>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          <div class="page-content">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  <div class="main-content">
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              {% block content %}{% endblock %}
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           </body>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           </html>>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PaperFlow{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block styles %}{% endblock %}
+</head>
+<body>
+
+    <nav class="sidebar">
+
+        <div class="brand">
+            <span class="brand-logo"></span>
+            <span class="brand-name">PaperFlow</span>
+        </div>
+
+        <div class="nav-links">
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+                    <span class="nav-icon"></span> Home
+                </a>
+                <a href="{{ url_for('upload') }}" class="nav-link {% if request.endpoint == 'upload' %}active{% endif %}">
+                    <span class="nav-icon"></span> Upload
+                </a>
+                <a href="{{ url_for('explore') }}" class="nav-link {% if request.endpoint == 'explore' %}active{% endif %}">
+                    <span class="nav-icon"></span> Explore
+                </a>
+                <a href="{{ url_for('view_classes') }}" class="nav-link {% if request.endpoint == 'view_classes' %}active{% endif %}">
+                    <span class="nav-icon"></span> Classes
+                </a>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="nav-link">
+                    <span class="nav-icon"></span> Login
+                </a>
+                <a href="{{ url_for('register') }}" class="nav-link">
+                    <span class="nav-icon"></span> Register
+                </a>
+            {% endif %}
+        </div>
+
+        {% if current_user.is_authenticated %}
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="user-avatar">{{ current_user.username[0].upper() }}</div>
+                <span class="user-name">{{ current_user.username }}</span>
+            </div>
+            <a href="{{ url_for('logout') }}" class="logout-btn" title="Logout">⏻</a>
+        </div>
+        {% endif %}
+
+    </nav>
+
+    <div class="page-content">
+        <div class="main-content">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+</body>
+</html>

@@ -6,3 +6,4 @@ pypdf
 gunicorn
 sqlalchemy
 psycopg2-binary
+pymupdf
