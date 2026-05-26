@@ -16,7 +16,7 @@ import os
 import re
 
 from models import PastPaper, Question, User, PaperFile, QuestionFile, UserPaper, Class, PaperUsed, QuestionUsed
-from llmprocess import process_question_with_llm
+from llmprocess import process_question_with_llm, process_questions_bulk_with_llm
 from split import crop_question
 from extensions import db
 
@@ -887,16 +887,37 @@ def llm_process_all(paper_id):
     if paper.owner_id != current_user.id:
         abort(403)
 
+    questions_with_text = [
+        (q.id, q.text) for q in paper.questions if q.text
+    ]
+
+    if not questions_with_text:
+        flash('No questions with text to process.', 'error')
+        return redirect(url_for('view_paper', paper_id=paper_id))
+
+    # Send all questions in one API call
+    try:
+        def chunked(lst, size):
+            for i in range(0, len(lst), size):
+                yield lst[i:i + size]
+
+        results = {}
+        for batch in chunked(questions_with_text, 15):
+            results.update(process_questions_bulk_with_llm(batch))
+    except Exception as e:
+        flash(f'LLM processing failed: {e}', 'error')
+        print(result)
+        return redirect(url_for('view_paper', paper_id=paper_id))
+
     updated, failed = 0, 0
-    for question in paper.questions:
-        if not question.text:
-            continue
-        try:
-            cleaned, tags = process_question_with_llm(question.text)
-            question.text = cleaned
-            question.tags = tags
+    for q in paper.questions:
+        if q.id in results:
+            cleaned, tags = results[q.id]
+            if cleaned:
+                q.text = cleaned
+            q.tags = tags
             updated += 1
-        except Exception:
+        elif q.text:
             failed += 1
 
     db.session.commit()
@@ -905,7 +926,6 @@ def llm_process_all(paper_id):
         msg += f' {failed} failed.'
     flash(msg, 'success' if not failed else 'warning')
     return redirect(url_for('view_paper', paper_id=paper_id))
-
 # --- Main ---
 if __name__ == '__main__':
 

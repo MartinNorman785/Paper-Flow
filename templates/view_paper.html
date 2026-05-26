@@ -121,6 +121,10 @@
                           onsubmit="return confirm('Overwrite all question text with text extracted from their PDFs?');">
                         <button class="qbtn" type="submit">Extract All Text</button>
                     </form>
+                    <form method="POST" action="{{ url_for('llm_process_all', paper_id=paper.id) }}"
+                          onsubmit="return confirm('Overwrite all question text and tags with cleaned up text and AI generated tags?');">
+                        <button class="qbtn" type="submit">AI Process</button>
+                    </form>
                     <form method="POST" action="{{ url_for('delete_questions', paper_id=paper.id) }}"
                           onsubmit="return confirm('Delete all questions?');">
                         <button class="qbtn-red" type="submit">Delete All</button>
