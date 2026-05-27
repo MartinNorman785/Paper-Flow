@@ -20,8 +20,6 @@ from llmprocess import process_question_with_llm, process_questions_bulk_with_ll
 from split import crop_question
 from extensions import db
 
-
-
 load_dotenv()
 
 app = Flask(__name__)
@@ -41,22 +39,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 os.environ.get('GROQ_API_KEY')
-
-from sqlalchemy import text
-
-@app.route("/add-admin-column")
-def add_admin_column():
-
-    db.session.execute(
-        text(
-            'ALTER TABLE "user" ADD COLUMN is_admin BOOLEAN DEFAULT FALSE'
-        )
-    )
-
-    db.session.commit()
-
-    return "Column added"
-
 
 with app.app_context():
     db.create_all()
@@ -91,7 +73,7 @@ def register():
 
         password = generate_password_hash(request.form['password'])
 
-        new_user = User(username=username, password_hash=password, is_admin=True)
+        new_user = User(username=username, password_hash=password)
         db.session.add(new_user)
         db.session.commit()
 
@@ -124,7 +106,7 @@ def logout():
     return redirect(url_for('login'))
 
 @app.route('/')
-#@login_required
+@login_required
 def index():
     links = UserPaper.query.filter_by(user_id=current_user.id).all()
 
@@ -133,7 +115,7 @@ def index():
 
 
 @app.route('/upload', methods=['GET', 'POST'])
-#@login_required
+@login_required
 def upload():
     message = None
 
@@ -170,7 +152,7 @@ def upload():
     return render_template('upload.html', message=message)
 
 @app.route('/paper/<int:paper_id>/split')
-#@login_required
+@login_required
 def split(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     return render_template('split.html', paper=paper)
@@ -178,7 +160,7 @@ def split(paper_id):
 import fitz
 
 @app.route('/paper/<int:paper_id>/save_splits', methods=['POST'])
-#@login_required
+@login_required
 def save_splits(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
@@ -246,7 +228,7 @@ def save_splits(paper_id):
 
 
 @app.route('/explore')
-#@login_required
+@login_required
 def explore():
     q = request.args.get('q', '').strip()
     sort = request.args.get('sort', 'new')
@@ -272,7 +254,7 @@ def explore():
 
 
 @app.route('/api/search')
-#@login_required
+@login_required
 def api_search():
     q = request.args.get('q', '').strip().lower()
  
@@ -375,7 +357,7 @@ def api_search():
     }
 
 @app.route('/add-to-my-files/<int:paper_id>', methods=['POST'])
-#@login_required
+@login_required
 def add_to_my_files(paper_id):
     existing = UserPaper.query.filter_by(
         user_id=current_user.id,
@@ -393,7 +375,7 @@ def add_to_my_files(paper_id):
     return redirect(url_for('view_paper', paper_id=paper_id))
 
 @app.route('/remove_paper/<int:paper_id>', methods=['POST'])
-#@login_required
+@login_required
 def remove_paper(paper_id):
 
     link = UserPaper.query.filter_by(
@@ -411,7 +393,7 @@ def remove_paper(paper_id):
     return redirect(request.referrer or url_for('explore'))
 
 @app.route('/question/<int:question_id>/edit', methods=['GET', 'POST'])
-#@login_required
+@login_required
 def edit_question(question_id):
     question = Question.query.get_or_404(question_id)
     paper = PastPaper.query.get_or_404(question.paper_id)
@@ -427,7 +409,7 @@ def edit_question(question_id):
     return render_template('edit_question.html', question=question)
 
 @app.route('/delete/<int:paper_id>', methods=['POST'])
-#@login_required
+@login_required
 def delete_paper(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id and not current_user.is_admin:
@@ -450,7 +432,7 @@ def delete_paper(paper_id):
 
 
 @app.route('/paper/<int:paper_id>')
-#@login_required
+@login_required
 def view_paper(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     edit_name = request.args.get('edit_name') == '1'
@@ -466,7 +448,7 @@ def view_paper(paper_id):
     )
 
 @app.route('/paper/<int:paper_id>/update_name', methods=['POST'])
-#@login_required
+@login_required
 def update_paper_name(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
@@ -505,19 +487,19 @@ def unformat_filename(display_name):
     return name
 
 @app.route('/uploads/<path:filename>')
-#@login_required
+@login_required
 def uploaded_file(filename):
     paper = PaperFile.query.filter_by(filename=filename).first_or_404()
     return send_file(BytesIO(paper.data), mimetype='application/pdf')
 
 @app.route('/upload_questions/<path:filename>')
-#@login_required
+@login_required
 def uploaded_question(filename):
     question = QuestionFile.query.filter_by(filename=filename).first_or_404()
     return send_file(BytesIO(question.data), mimetype='application/pdf')
 '''
 @app.route('/process/<int:paper_id>', methods=['POST'])
-#@login_required
+@login_required
 def process_paper(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
@@ -559,7 +541,7 @@ def utility_processor():
     return dict(format_filename=format_filename)
 
 @app.route('/question/<int:question_id>')
-#@login_required
+@login_required
 def view_question(question_id):
     question = Question.query.get(question_id)
     if not question:
@@ -572,7 +554,7 @@ def view_question(question_id):
     )
 
 @app.route('/paper/<int:paper_id>/add_question', methods=['GET', 'POST'])
-#@login_required
+@login_required
 def add_question(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
@@ -614,7 +596,7 @@ def add_question(paper_id):
     return render_template('add_question.html', paper=paper)
 
 @app.route('/delete_question/<int:question_id>', methods=['POST'])
-#@login_required
+@login_required
 def delete_question(question_id):
     question = Question.query.get_or_404(question_id)
     paper = PastPaper.query.get_or_404(question.paper_id)
@@ -635,7 +617,7 @@ def delete_question(question_id):
 
 
 @app.route('/delete_questions/<int:paper_id>', methods=['POST'])
-#@login_required
+@login_required
 def delete_questions(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
@@ -661,7 +643,7 @@ def user_has_paper(user, paper):
 
 
 @app.route('/classes')
-#@login_required
+@login_required
 def view_classes():
     user_classes = (
         Class.query
@@ -688,7 +670,7 @@ def view_classes():
  
  
 @app.route('/classes/<int:class_id>')
-#@login_required
+@login_required
 def view_class(class_id):
     cls = Class.query.filter_by(id=class_id, user_id=current_user.id).first_or_404()
  
@@ -737,7 +719,7 @@ def view_class(class_id):
  
  
 @app.route('/classes/new', methods=['GET', 'POST'])
-#@login_required
+@login_required
 def new_class():
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
@@ -752,7 +734,7 @@ def new_class():
  
  
 @app.route('/classes/<int:class_id>/delete', methods=['POST'])
-#@login_required
+@login_required
 def delete_class(class_id):
     cls = Class.query.filter_by(id=class_id, user_id=current_user.id).first_or_404()
     db.session.delete(cls)
@@ -814,7 +796,7 @@ def get_question_class_status_bulk(user_id, question_ids):
     }
 
 @app.route('/paper/<int:paper_id>/toggle_class/<int:class_id>', methods=['POST'])
-#@login_required
+@login_required
 def toggle_paper_class(paper_id, class_id):
     cls = Class.query.filter_by(id=class_id, user_id=current_user.id).first_or_404()
 
@@ -833,7 +815,7 @@ def toggle_paper_class(paper_id, class_id):
 
 
 @app.route('/question/<int:question_id>/toggle_class/<int:class_id>', methods=['POST'])
-#@login_required
+@login_required
 def toggle_question_class(question_id, class_id):
     cls = Class.query.filter_by(id=class_id, user_id=current_user.id).first_or_404()
 
@@ -871,7 +853,7 @@ def extract_text_from_question(question_id):
 # ── Route: extract text for a single question ─────────────────────────────────
  
 @app.route('/question/<int:question_id>/extract_text', methods=['POST'])
-#@login_required
+@login_required
 def extract_question_text(question_id):
     question = Question.query.get_or_404(question_id)
     paper = PastPaper.query.get_or_404(question.paper_id)
@@ -894,7 +876,7 @@ def extract_question_text(question_id):
 # ── Route: extract text for ALL questions on a paper ──────────────────────────
  
 @app.route('/paper/<int:paper_id>/extract_all_text', methods=['POST'])
-#@login_required
+@login_required
 def extract_all_question_text(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:
@@ -915,7 +897,7 @@ def extract_all_question_text(paper_id):
  
 
 @app.route('/question/<int:question_id>/llm_process', methods=['POST'])
-#@login_required
+@login_required
 def llm_process_question(question_id):
     question = Question.query.get_or_404(question_id)
     paper = PastPaper.query.get_or_404(question.paper_id)
@@ -939,7 +921,7 @@ def llm_process_question(question_id):
 
 
 @app.route('/paper/<int:paper_id>/llm_process_all', methods=['POST'])
-#@login_required
+@login_required
 def llm_process_all(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
     if paper.owner_id != current_user.id:

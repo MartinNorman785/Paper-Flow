@@ -1,8 +1,3 @@
 # Paper-Flow
-Past Paper Manager with Google Cloud
+Past Paper Manager
 
-
-# TODO
- - Work with AI classification / Tags and text extraction
- - Add tag used
- - Fix Displays and Interface
