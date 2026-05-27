@@ -32,6 +32,7 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(200), nullable=False)
     papers = db.relationship('UserPaper', backref='user', lazy=True)
     classes = db.relationship('Class', backref='user', lazy=True, cascade="all, delete-orphan")
+    is_admin = db.Column(db.Boolean, default='False')
 
 class PaperFile(db.Model):
     id = db.Column(db.Integer)

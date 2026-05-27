@@ -30,7 +30,7 @@
         </div>
  
         <div class="vp-header-actions">
-            {% if paper.owner_id == current_user.id %}
+            {% if paper.owner_id == current_user.id or current_user.is_admin %}
                 <a href="{{ url_for('view_paper', paper_id=paper.id, edit_name=1) }}">
                     <button class="hbtn-ghost">Rename</button>
                 </a>
@@ -110,7 +110,7 @@
                     <span class="q-count-badge">{{ paper.questions|length }} total</span>
                 </div>
  
-                {% if paper.owner_id == current_user.id %}
+                {% if paper.owner_id == current_user.id or current_user.is_admin %}
                 <div class="vp-q-btns">
                     <button class="qbtn" type="button"
                             onclick="window.location='{{ url_for('split', paper_id=paper.id) }}'">Split PDF</button>

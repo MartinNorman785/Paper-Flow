@@ -42,6 +42,9 @@ db.init_app(app)
 
 os.environ.get('GROQ_API_KEY')
 
+
+
+
 with app.app_context():
     db.create_all()
 
@@ -74,7 +77,8 @@ def register():
             return redirect(url_for('register'))
 
         password = generate_password_hash(request.form['password'])
-        new_user = User(username=username, password_hash=password)
+
+        new_user = User(username=username, password_hash=password, is_admin=True)
         db.session.add(new_user)
         db.session.commit()
 
@@ -178,7 +182,7 @@ def save_splits(paper_id):
 
     try:
         for i, q in enumerate(questions_data):
-            out_doc = fitz.open()  # new empty PDF
+            out_doc = fitz.open()
 
             for page_num in range(q["start_page"], q["end_page"] + 1):
                 src_page = src_doc[page_num]
@@ -413,7 +417,7 @@ def edit_question(question_id):
 @login_required
 def delete_paper(paper_id):
     paper = PastPaper.query.get_or_404(paper_id)
-    if paper.owner_id != current_user.id:
+    if paper.owner_id != current_user.id and not current_user.is_admin:
         abort(403)
 
     # Clean up class assignments and question class assignments
