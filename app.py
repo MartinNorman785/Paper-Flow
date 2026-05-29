@@ -20,6 +20,7 @@ from llmprocess import process_question_with_llm, process_questions_bulk_with_ll
 from split import crop_question
 from extensions import db
 
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -58,6 +59,10 @@ def load_user(user_id):
 def inject_user():
     return dict(user=current_user)
 
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return 'File is too large', 413
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -127,6 +132,15 @@ def upload():
             if file.filename == '':
                 message = "No file selected."
             elif file.filename.endswith('.pdf'):
+
+                file.seek(0, 2)
+                file_length = file.tell()
+                
+                file.seek(0)
+                
+                if file_length > (16 * 1024 * 1024):
+                    return "File too large", 400
+                    
                 original_name = secure_filename(file.filename)
 
                 unique_name = f"{uuid.uuid4().hex}_{original_name}"
