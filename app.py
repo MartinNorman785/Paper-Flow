@@ -19,6 +19,7 @@ from models import PastPaper, Question, User, PaperFile, QuestionFile, UserPaper
 from llmprocess import process_question_with_llm, process_questions_bulk_with_llm
 from extensions import db
 
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -58,6 +59,10 @@ def inject_user():
     return dict(user=current_user)
 
 
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return 'File is too large', 413
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -72,7 +77,7 @@ def register():
 
         password = generate_password_hash(request.form['password'])
 
-        new_user = User(username=username, password_hash=password)
+        new_user = User(username=username, password_hash=password, is_admin=False)
         db.session.add(new_user)
         db.session.commit()
 
