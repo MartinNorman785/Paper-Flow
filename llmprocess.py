@@ -1,10 +1,10 @@
-from groq import Groq
-import json
-import os
+from groq import Groq # LLM API client
+import json # To store and proccess LLM response
+import os # To access environment variables
 
-from tags import VALID_TAGS
+from tags import VALID_TAGS # List of tags corresponding with HSC units
 
-client = Groq(api_key=os.environ.get('GROQ_API_KEY'))
+client = Groq(api_key=os.environ.get('GROQ_API_KEY')) # Get API key from enviroment and create API client instance
 
 def process_question_with_llm(text):
     prompt = f"""You are processing an exam question from a school past paper.
@@ -28,18 +28,18 @@ Question text:
 """
 
     response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-        response_format={"type": "json_object"},  # forces valid JSON output
+        model="llama-3.1-8b-instant", # Model used
+        messages=[{"role": "user", "content": prompt}], # Prompt sent to LLM
+        temperature=0.1, # Low temperature for more deterministic output
+        response_format={"type": "json_object"}, # Spcifying return type
     )
 
-    raw = response.choices[0].message.content.strip()
+    raw = response.choices[0].message.content.strip() # Get the raw response text
 
-    result  = json.loads(raw)
-    print(result)
-    cleaned = result.get("cleaned_text", text).strip()
-    tags    = ", ".join(result.get("tags", []))
+    result  = json.loads(raw) # Convert to python dict
+    
+    cleaned = result.get("cleaned_text", text).strip() # Get cleaned text
+    tags    = ", ".join(result.get("tags", [])) # Get tags and convert to comma seperated string
     return cleaned, tags
 
 def process_questions_bulk_with_llm(questions):

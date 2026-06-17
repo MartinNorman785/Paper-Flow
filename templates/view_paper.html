@@ -13,45 +13,68 @@
     <div class="vp-flash">{{ flash_messages() }}</div>
 
     <div class="vp-header">
-        <div class="vp-header-left">
-            <a href="{{ url_for('index') }}" class="vp-back">← My Papers</a>
-            {% if edit_name and paper.owner_id == current_user.id %}
-                <form method="POST" action="{{ url_for('update_paper_name', paper_id=paper.id) }}"
-                      class="vp-name-form">
-                    <input type="text" name="filename" value="{{ format_filename(paper.filename) }}" required>
-                    <button class="hbtn-green" type="submit">Save</button>
-                    <a href="{{ url_for('view_paper', paper_id=paper.id) }}">
-                        <button class="hbtn-red" type="button">Cancel</button>
-                    </a>
-                </form>
-            {% else %}
-                <h1 class="vp-title">{{ format_filename(paper.filename) }}</h1>
-            {% endif %}
-        </div>
- 
-        <div class="vp-header-actions">
-            {% if paper.owner_id == current_user.id or current_user.is_admin %}
-                <a href="{{ url_for('view_paper', paper_id=paper.id, edit_name=1) }}">
-                    <button class="hbtn-ghost">Rename</button>
+    <div class="vp-header-left">
+        <a href="{{ url_for('index') }}" class="vp-back">← My Papers</a>
+        <!-- If editing pdf name and user is the owner -->
+        {% if edit_name and paper.owner_id == current_user.id %}
+            <form method="POST"
+                  action="{{ url_for('update_paper_name', paper_id=paper.id) }}"
+                  class="vp-name-form"> <!-- Form to update paper name -->
+
+                <!-- Text input with base value as previous filename -->
+                <input type="text"
+                       name="filename"
+                       value="{{ format_filename(paper.filename) }}"
+                       required>  
+                <!-- Save and cancel buttons -->
+                <button class="hbtn-green" type="submit">Save</button>
+
+                <a href="{{ url_for('view_paper', paper_id=paper.id) }}">
+                    <button class="hbtn-red" type="button">Cancel</button>
                 </a>
-                <form method="POST" action="{{ url_for('delete_paper', paper_id=paper.id) }}"
-                      onsubmit="return confirm('Delete this paper permanently?');">
-                    <button class="hbtn-red" type="submit">Delete</button>
-                </form>
-            {% else %}
-                {% if has_paper %}
-                    <form method="POST" action="{{ url_for('remove_paper', paper_id=paper.id) }}"
-                          onsubmit="return confirm('Remove from your files?');">
-                        <button class="hbtn-red" type="submit">Remove from Files</button>
-                    </form>
-                {% else %}
-                    <form action="{{ url_for('add_to_my_files', paper_id=paper.id) }}" method="POST">
-                        <button class="hbtn-ghost" type="submit">Add to My Files</button>
-                    </form>
-                {% endif %}
-            {% endif %}
-        </div>
+            </form>
+
+        {% else %} <!-- Otherwise just display the paper name -->
+            <h1 class="vp-title">{{ format_filename(paper.filename) }}</h1>
+        {% endif %}
     </div>
+
+    <div class="vp-header-actions">
+        {% if paper.owner_id == current_user.id or current_user.is_admin %}
+
+            <a href="{{ url_for('view_paper', paper_id=paper.id, edit_name=1) }}">
+                <button class="hbtn-ghost">Rename</button>
+            </a>
+
+            <form method="POST"
+                  action="{{ url_for('delete_paper', paper_id=paper.id) }}"
+                  onsubmit="return confirm('Delete this paper permanently?');">
+                <button class="hbtn-red" type="submit">Delete</button>
+            </form>
+
+        {% else %}
+
+            {% if has_paper %}
+                <form method="POST"
+                      action="{{ url_for('remove_paper', paper_id=paper.id) }}"
+                      onsubmit="return confirm('Remove from your files?');">
+                    <button class="hbtn-red" type="submit">
+                        Remove from Files
+                    </button>
+                </form>
+
+            {% else %}
+                <form action="{{ url_for('add_to_my_files', paper_id=paper.id) }}"
+                      method="POST">
+                    <button class="hbtn-ghost" type="submit">
+                        Add to My Files
+                    </button>
+                </form>
+            {% endif %}
+
+        {% endif %}
+    </div>
+</div>
 
     <div class="vp-body">
  

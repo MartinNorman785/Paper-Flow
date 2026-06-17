@@ -17,7 +17,6 @@ import re
 
 from models import PastPaper, Question, User, PaperFile, QuestionFile, UserPaper, Class, PaperUsed, QuestionUsed
 from llmprocess import process_question_with_llm, process_questions_bulk_with_llm
-from split import crop_question
 from extensions import db
 
 load_dotenv()
@@ -77,12 +76,9 @@ def register():
         db.session.add(new_user)
         db.session.commit()
 
-        user = User.query.filter_by(username=request.form['username']).first()
-        if user and check_password_hash(user.password_hash, request.form['password']):
-            login_user(user, remember=remember)
-            flash('You have been registered successfully.', 'success')
-            return redirect(url_for('index'))
-        flash('Invalid username or password.', 'error')
+
+        login_user(new_user, remember=remember)
+        flash('You have been registered successfully.', 'success')
         return redirect(url_for('index'))
     return render_template('register.html')
 
@@ -108,8 +104,10 @@ def logout():
 @app.route('/')
 @login_required
 def index():
+    # Get all papers linked to the user (either owned or added to their files)
     links = UserPaper.query.filter_by(user_id=current_user.id).all()
 
+    # Get Past Paper object from links
     papers = [p for link in links if (p := PastPaper.query.get(link.paper_id)) is not None]
     return render_template('index.html', papers=papers)
 
@@ -120,24 +118,29 @@ def upload():
     message = None
 
     if request.method == 'POST':
-        if 'file' not in request.files:
+        if 'file' not in request.files: # No file attached in request
             message = "No file part in request."
         else:
             file = request.files['file']
-            if file.filename == '':
+            if file.filename == '': # No file selected
                 message = "No file selected."
-            elif file.filename.endswith('.pdf'):
+            elif file.filename.endswith('.pdf'): # PDF file type check
+                # Convert to secure filename
                 original_name = secure_filename(file.filename)
 
+                # Add unique prefix to avoid clash
                 unique_name = f"{uuid.uuid4().hex}_{original_name}"
 
+                # Create paper and paper file DB entries
                 paper = PastPaper(filename=unique_name, owner_id=current_user.id)
                 paperfile = PaperFile(filename=unique_name, data=file.read())
 
+                # Commit to DB
                 db.session.add(paper)
                 db.session.add(paperfile)
                 db.session.commit()
 
+                # Link between user and paper for papers in user files
                 link = UserPaper(
                     user_id=current_user.id,
                     paper_id=paper.id
@@ -146,7 +149,7 @@ def upload():
                 db.session.commit()
 
                 return redirect(url_for('view_paper', paper_id=paper.id))
-            else:
+            else: # Not pdf file type
                 message = "Invalid file type. Only PDFs are allowed."
 
     return render_template('upload.html', message=message)
@@ -176,28 +179,29 @@ def save_splits(paper_id):
     del paper_file  # free DB object
 
     try:
-        for i, q in enumerate(questions_data):
+        for i, q in enumerate(questions_data): # Loop through questions from splits
             out_doc = fitz.open()
 
+            # Loop through each page
             for page_num in range(q["start_page"], q["end_page"] + 1):
-                src_page = src_doc[page_num]
-                page_h = src_page.rect.height
+                src_page = src_doc[page_num] # Get source page
+                page_h = src_page.rect.height # Get page height for calculations
 
-                if q["start_page"] == q["end_page"]:
-                    y_top    = q["start_y"] * page_h
+                if q["start_page"] == q["end_page"]: # Question is single page
+                    y_top    = q["start_y"] * page_h # Scale to page height
                     y_bottom = q["end_y"]   * page_h
-                elif page_num == q["start_page"]:
-                    y_top, y_bottom = q["start_y"] * page_h, page_h
-                elif page_num == q["end_page"]:
-                    y_top, y_bottom = 0, q["end_y"] * page_h
-                else:
-                    y_top, y_bottom = 0, page_h
+                elif page_num == q["start_page"]: # First page of multi-page question
+                    y_top, y_bottom = q["start_y"] * page_h, page_h # From y to page end
+                elif page_num == q["end_page"]: # Last page of multi-page question
+                    y_top, y_bottom = 0, q["end_y"] * page_h # From page start to y
+                else: # Middle page of multi-page question
+                    y_top, y_bottom = 0, page_h # Take whole page
 
-                clip = fitz.Rect(0, y_top, src_page.rect.width, y_bottom)
+                clip = fitz.Rect(0, y_top, src_page.rect.width, y_bottom) # Define crop
 
-                out_doc.insert_pdf(src_doc, from_page=page_num, to_page=page_num)
+                out_doc.insert_pdf(src_doc, from_page=page_num, to_page=page_num) # Add page to output
                 out_page = out_doc[-1]
-                out_page.set_cropbox(clip)
+                out_page.set_cropbox(clip) # Crop to question area
 
             extracted_text = f"Question {i + 1}"
             if auto_extract:
@@ -289,40 +293,48 @@ def api_search():
  
     # ── Question matches (by text or tags) ────────────────────────────────
     question_matches = Question.query.filter(
-        func.lower(Question.text).contains(q) |
-        func.lower(func.coalesce(Question.tags, '')).contains(q)
+        func.lower(Question.text).contains(q) | # Search by question text
+        func.lower(func.coalesce(Question.tags, '')).contains(q) # by tags
     ).all()
  
     question_results = []
  
     for question in question_matches:
-        paper = PastPaper.query.get(question.paper_id)
+        paper = PastPaper.query.get(question.paper_id) # Get question's paper
         if not paper:
             continue
  
-        # Also bubble the paper up into paper results
+        # Also add the paper to paper results
         if paper.id not in paper_results_map:
             paper_results_map[paper.id] = {"paper": paper, "matches": []}
  
         match_type = None
         match_value = None
- 
-        if question.tags and q in question.tags.lower():
-            for tag in question.tags.split(','):
+
+        if question.tags and q in question.tags.lower(): # Question matched tag
+            for tag in question.tags.split(','): # Loop through tags
                 if q in tag.strip().lower():
                     match_type = "tag"
                     match_value = tag.strip()
+
+                    # Update paper results with tag match
                     paper_results_map[paper.id]["matches"].append({"type": "tag", "value": tag.strip()})
+                    # Don't check other tags to avoid duplicates
                     break
  
-        if q in question.text.lower():
-            idx = question.text.lower().index(q)
+        if q in question.text.lower(): # Question matched text
+            idx = question.text.lower().index(q) # Get index of start of match in question text
+
+            # Create a snippet of question text around the match (30 chars before and after)
             start = max(0, idx - 30)
             end = min(len(question.text), idx + 30 + len(q))
+
+            # Add "..." at start/end if snippet is cuts of text
             snippet = ("…" if start > 0 else "") + question.text[start:end] + ("…" if end < len(question.text) else "")
-            if not match_type:
+            if not match_type: # Not matched with tags
                 match_type = "question"
                 match_value = snippet
+            # Update paper results with question text match
             paper_results_map[paper.id]["matches"].append({"type": "question", "value": snippet})
  
         question_results.append({
@@ -334,7 +346,7 @@ def api_search():
             "has_pdf": bool(question.filename),
             "match_type": match_type,
             "match_value": match_value,
-        })
+        }) # Get all details of question match for display
  
     # Sort papers: filename matches first, then by id desc
     sorted_papers = sorted(
@@ -530,7 +542,7 @@ def format_filename(filename):
     words = name.split()
     formatted = []
     for w in words:
-        if w.upper() in ["HSC", "IB", "PDF"]:
+        if w.upper() == "HSC":
             formatted.append(w.upper())
         else:
             formatted.append(w.capitalize())
@@ -743,7 +755,6 @@ def delete_class(class_id):
     return redirect(url_for('view_classes'))
 
 def get_paper_class_status(user_id, paper_id):
-    """One dict per class the user owns: was this paper assigned to it?"""
     user_classes = Class.query.filter_by(user_id=user_id).order_by(Class.name).all()
     assigned_ids = {
         s.class_id for s in PaperUsed.query.filter_by(paper_id=paper_id).all()
@@ -755,7 +766,6 @@ def get_paper_class_status(user_id, paper_id):
  
  
 def get_question_class_status(user_id, question_id):
-    """One dict per class the user owns: was this question assigned to it?"""
     user_classes = Class.query.filter_by(user_id=user_id).order_by(Class.name).all()
     assigned_ids = {
         s.class_id for s in QuestionUsed.query.filter_by(question_id=question_id).all()
@@ -767,10 +777,6 @@ def get_question_class_status(user_id, question_id):
  
  
 def get_question_class_status_bulk(user_id, question_ids):
-    """
-    Bulk version — 2 DB queries total regardless of question count.
-    Returns { question_id: [{"class_id": ..., "class_name": ..., "assigned": ...}, ...] }
-    """
     user_classes = Class.query.filter_by(user_id=user_id).order_by(Class.name).all()
     if not user_classes or not question_ids:
         return {}
@@ -839,17 +845,17 @@ def extract_text_from_question(question_id):
     Extract text from a question's PDF using fitz.
     Returns the extracted string, or None if no PDF is attached.
     """
-    question = Question.query.get_or_404(question_id)
-    if not question.filename:
+    question = Question.query.get_or_404(question_id) # Get Question from DB
+    if not question.filename: # No PDF attached
         return None
  
-    qfile = QuestionFile.query.get_or_404(question.filename)
-    doc = fitz.open(stream=qfile.data, filetype="pdf")
-    text = "\n".join(page.get_text() for page in doc).strip()
+    qfile = QuestionFile.query.get_or_404(question.filename) # Get PDF file from DB
+    doc = fitz.open(stream=qfile.data, filetype="pdf") # Open PDF with fitz
+    text = "\n".join(page.get_text() for page in doc).strip() # Extract text from all pages
     doc.close()
-    return text or ""
+    return text or "" 
  
- 
+
 # ── Route: extract text for a single question ─────────────────────────────────
  
 @app.route('/question/<int:question_id>/extract_text', methods=['POST'])
@@ -936,16 +942,19 @@ def llm_process_all(paper_id):
         return redirect(url_for('view_paper', paper_id=paper_id))
 
     # Send all questions in one API call
+
+
     try:
+        # Function that yields successive n-sized chunks from a list
         def chunked(lst, size):
-            for i in range(0, len(lst), size):
-                yield lst[i:i + size]
+            for i in range(0, len(lst), size): # Loop through moving n steps each time
+                yield lst[i:i + size] # Return a slice of the list from the current position to n positions ahead
 
         results = {}
-        for batch in chunked(questions_with_text, 15):
-            results.update(process_questions_bulk_with_llm(batch))
-    except Exception as e:
-        flash(f'LLM processing failed: {e}', 'error')
+        for batch in chunked(questions_with_text, 15): # Loop though all questions in batches of 15
+            results.update(process_questions_bulk_with_llm(batch)) # Proccess each batch and add to results
+    except Exception as e: # API Call failed
+        flash(f'LLM processing failed: {e}', 'error') # Output error message to user
         return redirect(url_for('view_paper', paper_id=paper_id))
 
     updated, failed = 0, 0

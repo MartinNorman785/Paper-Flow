@@ -1,7 +1,8 @@
-from extensions import db
-from flask_login import UserMixin
+from extensions import db # Import db preventing circular imports
+from flask_login import UserMixin # For user authentication
 
 class PastPaper(db.Model):
+    """Model for a past paper, which can have multiple questions and is linked to a user."""
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(200), nullable=False)
     questions = db.relationship(
@@ -14,11 +15,18 @@ class PastPaper(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
 class UserPaper(db.Model):
+    """
+    Association table linking users to papers in their files,
+    allowing for multiple users to have access to the same paper.
+    """
     id = db.Column(db.Integer)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, primary_key=True)
     paper_id = db.Column(db.Integer, db.ForeignKey('past_paper.id'), nullable=False, primary_key=True)
 
 class Question(db.Model):
+    """
+    Model for a question, linked to its parent paper.
+    """
     id = db.Column(db.Integer, primary_key=True)
     paper_id = db.Column(db.Integer, db.ForeignKey('past_paper.id'), nullable=False)
     filename = db.Column(db.String(200), nullable=True)
@@ -26,7 +34,7 @@ class Question(db.Model):
     tags = db.Column(db.String(200), nullable=True)
 
 class User(db.Model, UserMixin):
-    __tablename__ = 'user'
+    """Model for a user, which can own papers and have access to multiple classes."""
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
@@ -35,11 +43,13 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default='False')
 
 class PaperFile(db.Model):
+    """Model for storing the actual PDF file data of a past paper."""
     id = db.Column(db.Integer)
     filename = db.Column(db.String(200), nullable=True, index=True, primary_key=True)
     data = db.Column(db.LargeBinary)
 
 class QuestionFile(db.Model):
+    """Model for storing the actual PDF file data of a question."""
     id = db.Column(db.Integer)
     filename = db.Column(db.String(200), nullable=True, index=True, primary_key=True)
     data = db.Column(db.LargeBinary)
